@@ -1,3 +1,7 @@
+# Electron Forge / webpack output
+.webpack/
+out/
+
 # Logs
 logs
 *.log

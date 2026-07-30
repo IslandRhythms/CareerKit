@@ -1,0 +1,683 @@
+:root {
+  --ck-accent: hsl(25deg 95% 53%);
+  --ck-accent-soft: hsl(25deg 95% 53% / 0.14);
+  --ck-radius: 6px;
+  --ck-font-heading: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --ck-font-mono: 'JetBrains Mono', Consolas, 'Courier New', monospace;
+  --bulma-family-primary: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  /* Warm the whole surface palette: Bulma derives every gray from this hue. */
+  --bulma-scheme-h: 28;
+  --bulma-scheme-s: 12%;
+  /* Status + source palette */
+  --ck-c-saved: #38bdf8;
+  --ck-c-applied: #2dd4bf;
+  --ck-c-interview: #fbbf24;
+  --ck-c-offer: #34d399;
+  --ck-c-rejected: #fb7185;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--bulma-family-primary);
+  font-size: 0.875rem;
+}
+
+/* ---------- Type scale: compact, information-first ---------- */
+
+.title {
+  font-family: var(--ck-font-heading);
+  letter-spacing: -0.015em;
+  font-weight: 700;
+}
+
+.title.is-3 {
+  font-size: 1.2rem;
+}
+
+.title.is-4 {
+  font-size: 1.05rem;
+}
+
+.title.is-5 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--bulma-text-strong);
+}
+
+.title.is-6 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.subtitle.is-6 {
+  font-size: 0.8rem;
+}
+
+.label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: var(--bulma-text-weak, var(--bulma-text));
+}
+
+.label:not(:last-child) {
+  margin-bottom: 0.35em;
+}
+
+/* ---------- Shell & command bar ---------- */
+
+.ck-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: color-mix(in srgb, var(--ck-accent) 3%, var(--bulma-scheme-main));
+}
+
+.ck-navbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: stretch;
+  height: 2.9rem;
+  padding: 0 1rem;
+  gap: 1.25rem;
+  background: var(--bulma-scheme-main-bis, var(--bulma-scheme-main));
+  border-bottom: 1px solid var(--bulma-border);
+  z-index: 30;
+}
+
+.ck-brand {
+  display: flex;
+  align-items: center;
+  font-family: var(--ck-font-mono);
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  color: var(--bulma-text-strong);
+  user-select: none;
+}
+
+.ck-brand-accent {
+  color: var(--ck-accent);
+}
+
+.ck-nav-tabs {
+  display: flex;
+  align-items: stretch;
+}
+
+.ck-nav-tab {
+  display: flex;
+  align-items: center;
+  padding: 0 0.9rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--bulma-text-weak, var(--bulma-text));
+  border-bottom: 2px solid transparent;
+  border-top: 2px solid transparent;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+
+.ck-nav-tab:hover {
+  color: var(--bulma-text-strong);
+}
+
+.ck-nav-tab-active {
+  color: var(--ck-accent);
+  border-bottom-color: var(--ck-accent);
+}
+
+.ck-stats {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+  margin-left: auto;
+}
+
+.ck-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.ck-stat-num {
+  font-family: var(--ck-font-mono);
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--bulma-text-strong);
+}
+
+.ck-stat-accent {
+  color: var(--ck-accent);
+}
+
+.ck-stat-active .ck-stat-num {
+  color: var(--ck-c-applied);
+}
+
+.ck-stat-interviews .ck-stat-num {
+  color: var(--ck-c-interview);
+}
+
+.ck-stat-offers .ck-stat-num {
+  color: var(--ck-c-offer);
+}
+
+.ck-stat-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--bulma-text-weak, var(--bulma-text));
+}
+
+.ck-content {
+  flex-grow: 1;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+.ck-page-narrow {
+  max-width: 56rem;
+  margin: 0 auto;
+}
+
+/* ---------- Surfaces: flat, hairline-bordered ---------- */
+
+.box {
+  border-radius: var(--ck-radius);
+  border: 1px solid var(--bulma-border);
+  background: var(--bulma-scheme-main-bis, var(--bulma-scheme-main));
+  box-shadow: none;
+  padding: 1rem 1.1rem;
+}
+
+.box:not(:last-child) {
+  margin-bottom: 0.9rem;
+}
+
+.button {
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.button.is-small {
+  font-size: 0.7rem;
+}
+
+.input,
+.textarea,
+.select select {
+  border-radius: 4px;
+  font-size: 0.85rem;
+  box-shadow: none;
+}
+
+.input:focus,
+.textarea:focus,
+.select select:focus {
+  box-shadow: 0 0 0 0.18em var(--ck-accent-soft);
+}
+
+.tag {
+  border-radius: 4px;
+  font-size: 0.7rem;
+}
+
+.modal-card {
+  border-radius: var(--ck-radius);
+  border: 1px solid var(--bulma-border);
+}
+
+.modal-card-head,
+.modal-card-foot {
+  padding: 0.9rem 1.2rem;
+}
+
+.ck-modal {
+  width: 46rem;
+  max-width: calc(100vw - 2rem);
+}
+
+.ck-subcard {
+  border: 1px solid var(--bulma-border);
+  border-radius: var(--ck-radius);
+  background: var(--bulma-scheme-main);
+  transition: opacity 0.15s ease;
+}
+
+.ck-excluded {
+  opacity: 0.5;
+  border-style: dashed;
+}
+
+/* ---------- Chips & tags ---------- */
+
+.ck-chip {
+  background: var(--ck-accent-soft);
+  color: var(--bulma-text-strong);
+  border: 1px solid color-mix(in srgb, var(--ck-accent) 32%, transparent);
+}
+
+.ck-chip-off {
+  background: transparent;
+  color: var(--bulma-text-weak, var(--bulma-text));
+  border: 1px dashed var(--bulma-border);
+  text-decoration: line-through;
+}
+
+.ck-skill {
+  cursor: pointer;
+  user-select: none;
+}
+
+.ck-include-toggle {
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.62rem !important;
+  font-weight: 600;
+}
+
+/* ---------- Kanban board ---------- */
+
+.ck-board {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(12rem, 1fr));
+  gap: 0.6rem;
+  align-items: start;
+}
+
+.ck-col-saved {
+  --ck-col: var(--ck-c-saved);
+}
+
+.ck-col-applied {
+  --ck-col: var(--ck-c-applied);
+}
+
+.ck-col-interview {
+  --ck-col: var(--ck-c-interview);
+}
+
+.ck-col-offer {
+  --ck-col: var(--ck-c-offer);
+}
+
+.ck-col-rejected {
+  --ck-col: var(--ck-c-rejected);
+}
+
+.ck-column {
+  min-height: 13rem;
+  padding: 0.6rem !important;
+  border-top: 2px solid var(--ck-col, var(--ck-accent));
+  background: color-mix(in srgb, var(--ck-col, var(--ck-accent)) 4%, var(--bulma-scheme-main-bis));
+}
+
+.ck-col-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.ck-col-name {
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--ck-col, var(--ck-accent));
+}
+
+.ck-col-count {
+  font-family: var(--ck-font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0 0.4rem;
+  border-radius: 4px;
+  color: var(--ck-col, var(--ck-accent));
+  background: color-mix(in srgb, var(--ck-col, var(--ck-accent)) 14%, transparent);
+}
+
+.ck-column-over {
+  outline: 1px dashed var(--ck-accent);
+  outline-offset: -1px;
+  background: var(--ck-accent-soft);
+}
+
+.ck-card {
+  cursor: grab;
+  border-radius: 4px;
+  border: 1px solid var(--bulma-border);
+  box-shadow: none;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.ck-card:hover {
+  border-color: color-mix(in srgb, var(--ck-accent) 55%, var(--bulma-border));
+  background: var(--ck-accent-soft);
+}
+
+.ck-card:active {
+  cursor: grabbing;
+}
+
+.ck-card .card-content {
+  padding: 0.55rem 0.7rem !important;
+}
+
+/* ---------- Discover grid ---------- */
+
+.ck-job-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr));
+  gap: 0.6rem;
+}
+
+.ck-job-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: var(--ck-radius);
+  border: 1px solid var(--bulma-border);
+  background: var(--bulma-scheme-main-bis, var(--bulma-scheme-main));
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.ck-job-card:hover {
+  border-color: color-mix(in srgb, var(--ck-accent) 55%, var(--bulma-border));
+  background: color-mix(in srgb, var(--ck-accent) 5%, var(--bulma-scheme-main-bis));
+}
+
+.ck-job-card-top {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.ck-job-source {
+  font-family: var(--ck-font-mono);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--bulma-text-weak, var(--bulma-text));
+}
+
+.ck-src-greenhouse {
+  color: #34d399;
+}
+
+.ck-src-lever {
+  color: #a78bfa;
+}
+
+.ck-src-remotive {
+  color: #2dd4bf;
+}
+
+.ck-src-jobicy {
+  color: #fb923c;
+}
+
+.ck-job-flag {
+  margin-left: auto;
+  font-size: 0.75rem;
+}
+
+.ck-job-title {
+  font-weight: 600;
+  font-size: 0.85rem;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ck-job-company {
+  font-size: 0.78rem;
+  color: var(--bulma-text-weak, var(--bulma-text));
+}
+
+.ck-job-meta {
+  font-family: var(--ck-font-mono);
+  font-size: 0.68rem;
+  color: var(--bulma-text-weak, var(--bulma-text));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ck-job-card-actions {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: auto;
+  padding-top: 0.45rem;
+}
+
+.ck-score-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.1rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 4px;
+  font-family: var(--ck-font-mono);
+  font-weight: 700;
+  font-size: 0.72rem;
+  background: transparent;
+}
+
+.ck-score-high {
+  color: #22c55e;
+  border: 1px solid color-mix(in srgb, #22c55e 45%, transparent);
+  background: color-mix(in srgb, #22c55e 10%, transparent);
+}
+
+.ck-score-mid {
+  color: #f59e0b;
+  border: 1px solid color-mix(in srgb, #f59e0b 45%, transparent);
+  background: color-mix(in srgb, #f59e0b 10%, transparent);
+}
+
+.ck-score-low {
+  color: var(--bulma-text-weak, var(--bulma-text));
+  border: 1px solid var(--bulma-border);
+}
+
+.ck-blacklisted {
+  opacity: 0.55;
+  border-left: 2px solid var(--bulma-danger, #f14668);
+}
+
+.ck-empty-state {
+  text-align: center;
+  padding: 4rem 1rem;
+}
+
+.ck-reasons {
+  list-style: disc;
+  margin-left: 1.25rem;
+}
+
+.ck-description {
+  white-space: pre-wrap;
+  max-height: 20rem;
+  overflow-y: auto;
+  font-family: inherit;
+  font-size: 0.8rem;
+  border-radius: 4px;
+  border: 1px solid var(--bulma-border);
+}
+
+/* ---------- Appearance swatches ---------- */
+
+.ck-swatch {
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 4px;
+  border: 1px solid var(--bulma-border);
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ck-swatch:hover {
+  transform: scale(1.1);
+}
+
+.ck-swatch-active {
+  border-color: var(--bulma-text-strong);
+  box-shadow: 0 0 0 2px var(--ck-accent-soft);
+}
+
+.ck-swatch-custom {
+  position: relative;
+  background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red);
+  overflow: hidden;
+  font-size: 0.8rem;
+}
+
+.ck-swatch-custom input[type='color'] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* ---------- Resume preview (always paper-styled) ---------- */
+
+.ck-resume-preview {
+  background: #fff;
+  color: #1a1a1a;
+  border-radius: 4px;
+  border: 1px solid var(--bulma-border);
+  box-shadow: 0 6px 24px hsl(0deg 0% 0% / 0.14);
+  padding: 3rem 3.2rem;
+  max-width: 50rem;
+  margin: 0 auto;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.ck-rp-header h1 {
+  font-family: var(--ck-font-heading);
+  font-size: 1.7rem;
+  font-weight: 700;
+  margin-bottom: 0.15rem;
+  color: #111;
+}
+
+.ck-rp-contact {
+  font-size: 0.85rem;
+  color: #555;
+}
+
+.ck-resume-preview section {
+  margin-top: 1.3rem;
+}
+
+.ck-resume-preview h2 {
+  font-family: var(--ck-font-heading);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #333;
+  border-bottom: 1.5px solid #ddd;
+  padding-bottom: 0.2rem;
+  margin-bottom: 0.55rem;
+}
+
+.ck-rp-entry {
+  margin-bottom: 0.7rem;
+}
+
+.ck-rp-entry-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.ck-rp-entry-head span {
+  font-size: 0.8rem;
+  color: #555;
+  white-space: nowrap;
+}
+
+.ck-resume-preview ul {
+  list-style: disc;
+  margin-left: 1.2rem;
+  margin-top: 0.2rem;
+}
+
+/* ---------- Scrollbars ---------- */
+
+.ck-content::-webkit-scrollbar,
+.ck-description::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ck-content::-webkit-scrollbar-thumb,
+.ck-description::-webkit-scrollbar-thumb {
+  background: var(--bulma-border);
+  border-radius: 4px;
+}
+
+.ck-content::-webkit-scrollbar-thumb:hover,
+.ck-description::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--ck-accent) 40%, var(--bulma-border));
+}
+
+.ck-content::-webkit-scrollbar-track,
+.ck-description::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---------- Print: only the resume sheet ---------- */
+
+@media print {
+  html,
+  body {
+    overflow: visible;
+  }
+  .ck-navbar,
+  .ck-resume-toolbar,
+  .ck-save-bar,
+  button {
+    display: none !important;
+  }
+  .ck-shell {
+    display: block;
+    height: auto;
+    background: #fff;
+  }
+  .ck-content {
+    overflow: visible;
+    padding: 0 !important;
+  }
+  .ck-resume-preview {
+    box-shadow: none;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    max-width: none;
+  }
+}
