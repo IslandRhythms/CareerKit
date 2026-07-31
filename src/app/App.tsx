@@ -3,15 +3,17 @@ import { TrackerPage } from './pages/TrackerPage';
 import { DiscoverPage } from './pages/DiscoverPage';
 import { PreferencesPage } from './pages/PreferencesPage';
 import { ResumePage } from './pages/ResumePage';
+import { SettingsPage } from './pages/SettingsPage';
 import { applyTheme } from './theme';
 
-type Page = 'tracker' | 'discover' | 'resume' | 'preferences';
+type Page = 'tracker' | 'discover' | 'resume' | 'preferences' | 'settings';
 
 const NAV_ITEMS: Array<{ id: Page; label: string }> = [
   { id: 'tracker', label: 'Tracker' },
   { id: 'discover', label: 'Discover' },
   { id: 'resume', label: 'Resume' },
   { id: 'preferences', label: 'Preferences' },
+  { id: 'settings', label: 'Settings' },
 ];
 
 interface PipelineStats {
@@ -75,6 +77,7 @@ export function App() {
         {page === 'discover' && <DiscoverPage />}
         {page === 'resume' && <ResumePage />}
         {page === 'preferences' && <PreferencesPage />}
+        {page === 'settings' && <SettingsPage />}
       </main>
     </div>
   );

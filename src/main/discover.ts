@@ -1,5 +1,6 @@
 import { DiscoveredJob, DiscoverResult } from '../shared/types';
 import { matchesQuery } from '../shared/text';
+import { parseSalaryMax } from '../shared/salary';
 import { getPreferences, getResume, hasExternalJob } from './db';
 import { rankJob } from './ranking';
 import {
@@ -66,6 +67,7 @@ export async function discoverJobs(query: string): Promise<DiscoverResult> {
     const { score, reasons } = rankJob(job, prefs, resume);
     jobs.push({
       ...job,
+      salaryMaxParsed: parseSalaryMax(job.salaryText),
       score,
       reasons,
       inTracker: hasExternalJob(job.source, job.externalId),
@@ -74,5 +76,5 @@ export async function discoverJobs(query: string): Promise<DiscoverResult> {
   }
 
   jobs.sort((a, b) => b.score - a.score);
-  return { jobs: jobs.slice(0, 100), errors };
+  return { jobs: jobs.slice(0, 500), errors };
 }

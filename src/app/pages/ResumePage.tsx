@@ -2,6 +2,7 @@ import { KeyboardEvent, useEffect, useMemo, useState } from 'react';
 import {
   DEFAULT_RESUME,
   Resume,
+  ResumeBullet,
   ResumeEducation,
   ResumeExperience,
   ResumeProject,
@@ -12,22 +13,59 @@ export function ResumePage() {
   const [resume, setResume] = useState<Resume>(DEFAULT_RESUME);
   const [loaded, setLoaded] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [savedJson, setSavedJson] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importNotice, setImportNotice] = useState<{
+    tone: 'success' | 'danger';
+    lines: string[];
+  } | null>(null);
   const [view, setView] = useState<'edit' | 'preview'>('edit');
 
   useEffect(() => {
     window.careerkit.getResume().then((r) => {
       setResume(r);
+      setSavedJson(JSON.stringify(r));
       setLoaded(true);
     });
   }, []);
+
+  const dirty = loaded && JSON.stringify(resume) !== savedJson;
 
   const set = <K extends keyof Resume>(key: K, value: Resume[K]) =>
     setResume((r) => ({ ...r, [key]: value }));
 
   const save = async () => {
     await window.careerkit.saveResume(resume);
+    setSavedJson(JSON.stringify(resume));
     setSavedFlash(true);
     setTimeout(() => setSavedFlash(false), 2000);
+  };
+
+  const importFromFile = async () => {
+    setImporting(true);
+    setImportNotice(null);
+    try {
+      const result = await window.careerkit.importResume();
+      if (!result) return; // dialog cancelled
+      const { merged, added } = mergeImportedResume(resume, result.resume);
+      const summary =
+        added.length > 0
+          ? `Imported from ${result.fileName}: ${added.join(', ')}.`
+          : `Nothing new found in ${result.fileName} — everything in it is already here.`;
+      setResume(merged);
+      setImportNotice({
+        tone: 'success',
+        lines: [summary + ' Review the entries below, then Save.', ...result.warnings],
+      });
+      setView('edit');
+    } catch (error) {
+      setImportNotice({
+        tone: 'danger',
+        lines: [error instanceof Error ? error.message : 'Import failed.'],
+      });
+    } finally {
+      setImporting(false);
+    }
   };
 
   const counts = useMemo(() => {
@@ -45,7 +83,7 @@ export function ResumePage() {
 
   return (
     <div className="ck-page-narrow">
-      <div className="level mb-4 ck-resume-toolbar">
+      <div className="level mb-4 ck-page-toolbar">
         <div className="level-left">
           <div>
             <h1 className="title is-3 mb-1">Master Resume</h1>
@@ -76,17 +114,97 @@ export function ResumePage() {
                 Print / PDF
               </button>
             )}
-            <button className="button is-primary" onClick={save}>
+            <button
+              className={`button ${importing ? 'is-loading' : ''}`}
+              title="Import a PDF, Word, or text resume and add its contents to the master resume"
+              onClick={importFromFile}
+              disabled={importing}
+            >
+              ⬆ Import Resume
+            </button>
+            <span className={dirty ? 'ck-unsaved-hint' : 'ck-saved-hint'}>
+              {dirty ? '● Unsaved changes' : savedFlash ? '✓ Saved' : 'All changes saved'}
+            </span>
+            <button className="button is-primary ck-save-button" onClick={save} disabled={!dirty}>
               Save
             </button>
-            {savedFlash && <span className="ml-2 has-text-success">✓ Saved</span>}
           </div>
         </div>
       </div>
 
+      {importNotice && (
+        <div className={`notification is-light is-${importNotice.tone} py-3`}>
+          <button className="delete" onClick={() => setImportNotice(null)} />
+          {importNotice.lines.map((line, i) => (
+            <p key={i} className={i === 0 ? '' : 'is-size-7 has-text-grey mt-1'}>
+              {i === 0 ? line : `⚠ ${line}`}
+            </p>
+          ))}
+        </div>
+      )}
+
       {view === 'preview' ? <ResumePreview resume={resume} /> : <ResumeEditor resume={resume} set={set} />}
     </div>
   );
+}
+
+/**
+ * Folds a parsed upload into the master resume without clobbering anything:
+ * contact fields only fill blanks, list entries are appended unless an
+ * equivalent entry already exists. Returns human-readable notes of what was added.
+ */
+function mergeImportedResume(current: Resume, imported: Resume): { merged: Resume; added: string[] } {
+  const merged: Resume = { ...current };
+  const added: string[] = [];
+  const norm = (s: string) => s.trim().toLowerCase();
+  const count = (n: number, singular: string, plural = `${singular}s`) =>
+    added.push(`${n} ${n === 1 ? singular : plural}`);
+
+  let contactFilled = 0;
+  for (const key of ['fullName', 'email', 'phone', 'location', 'summary'] as const) {
+    if (!current[key].trim() && imported[key].trim()) {
+      merged[key] = imported[key];
+      contactFilled += 1;
+    }
+  }
+  const existingLinks = new Set(current.links.map(norm));
+  const newLinks = imported.links.filter((l) => !existingLinks.has(norm(l)));
+  if (newLinks.length > 0) merged.links = [...current.links, ...newLinks];
+  if (contactFilled + newLinks.length > 0) count(contactFilled + newLinks.length, 'contact detail');
+
+  const existingSkills = new Set(current.skills.map((s) => norm(s.name)));
+  const newSkills = imported.skills.filter((s) => s.name.trim() && !existingSkills.has(norm(s.name)));
+  if (newSkills.length > 0) {
+    merged.skills = [...current.skills, ...newSkills];
+    count(newSkills.length, 'skill');
+  }
+
+  const expKey = (e: { company: string; title: string }) => `${norm(e.company)}|${norm(e.title)}`;
+  const existingExp = new Set(current.experience.map(expKey));
+  const newExp = imported.experience.filter(
+    (e) => (e.company.trim() || e.title.trim()) && !existingExp.has(expKey(e))
+  );
+  if (newExp.length > 0) {
+    merged.experience = [...current.experience, ...newExp];
+    count(newExp.length, 'experience entry', 'experience entries');
+  }
+
+  const eduKey = (e: { school: string; degree: string }) => `${norm(e.school)}|${norm(e.degree)}`;
+  const existingEdu = new Set(current.education.map(eduKey));
+  const newEdu = imported.education.filter((e) => !existingEdu.has(eduKey(e)));
+  if (newEdu.length > 0) {
+    merged.education = [...current.education, ...newEdu];
+    count(newEdu.length, 'education entry', 'education entries');
+  }
+
+  const existingProjects = new Set(current.projects.map((p) => norm(p.name)));
+  const newProjects = imported.projects.filter((p) => !existingProjects.has(norm(p.name)));
+  if (newProjects.length > 0) {
+    merged.projects = [...current.projects, ...newProjects];
+    count(newProjects.length, 'project');
+  }
+
+  return { merged, added };
 }
 
 function ResumeEditor({
@@ -282,12 +400,12 @@ function ResumePreview({ resume }: { resume: Resume }) {
                     .join('  ·  ')}
                 </span>
               </div>
-              {exp.bullets.filter((b) => b.trim()).length > 0 && (
+              {exp.bullets.filter((b) => b.included && b.text.trim()).length > 0 && (
                 <ul>
                   {exp.bullets
-                    .filter((b) => b.trim())
-                    .map((bullet, i) => (
-                      <li key={i}>{bullet}</li>
+                    .filter((b) => b.included && b.text.trim())
+                    .map((bullet) => (
+                      <li key={bullet.id}>{bullet.text}</li>
                     ))}
                 </ul>
               )}
@@ -527,22 +645,92 @@ function ExperienceEditor({
           </label>
         </div>
       </div>
-      <div className="field">
-        <label className="label">Highlights (one per line)</label>
-        <textarea
-          className="textarea"
-          rows={4}
-          value={exp.bullets.join('\n')}
-          placeholder={'Shipped X, improving Y by Z%\nLed a team of…'}
-          onChange={(e) => onChange({ ...exp, bullets: e.target.value.split('\n') })}
-          onBlur={(e) =>
-            onChange({ ...exp, bullets: e.target.value.split('\n').filter((b) => b.trim()) })
-          }
-        />
-      </div>
+      <BulletEditor
+        bullets={exp.bullets}
+        onChange={(bullets) => onChange({ ...exp, bullets })}
+      />
       <button className="button is-small is-danger is-outlined" onClick={onRemove}>
         Remove
       </button>
+    </div>
+  );
+}
+
+/**
+ * Bullet bank for one experience: keep every highlight here and toggle which
+ * ones appear under the entry on the generated resume.
+ */
+function BulletEditor({
+  bullets,
+  onChange,
+}: {
+  bullets: ResumeBullet[];
+  onChange(bullets: ResumeBullet[]): void;
+}) {
+  const [draft, setDraft] = useState('');
+
+  const addBullets = () => {
+    const added = draft
+      .split('\n')
+      .map((text) => text.trim())
+      .filter(Boolean)
+      .map((text) => ({ id: crypto.randomUUID(), text, included: true }));
+    if (added.length > 0) onChange([...bullets, ...added]);
+    setDraft('');
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      addBullets();
+    }
+  };
+
+  const update = (id: string, changes: Partial<ResumeBullet>) =>
+    onChange(bullets.map((b) => (b.id === id ? { ...b, ...changes } : b)));
+
+  return (
+    <div className="field">
+      <label className="label">Highlights</label>
+      {bullets.length > 0 && (
+        <p className="is-size-7 has-text-grey mb-2">
+          Toggle which bullet points appear under this entry on the resume.
+        </p>
+      )}
+      {bullets.map((bullet) => (
+        <div key={bullet.id} className={`ck-bullet-row ${bullet.included ? '' : 'ck-bullet-off'}`}>
+          <button
+            className={`button is-small ck-bullet-toggle ${bullet.included ? 'is-primary' : ''}`}
+            title={bullet.included ? 'On resume — click to exclude' : 'Excluded — click to include'}
+            onClick={() => update(bullet.id, { included: !bullet.included })}
+          >
+            {bullet.included ? '✓' : '•'}
+          </button>
+          <input
+            className="input"
+            value={bullet.text}
+            onChange={(e) => update(bullet.id, { text: e.target.value })}
+            onBlur={() => {
+              if (!bullet.text.trim()) onChange(bullets.filter((b) => b.id !== bullet.id));
+            }}
+          />
+          <button
+            className="delete"
+            title="Remove this bullet"
+            onClick={() => onChange(bullets.filter((b) => b.id !== bullet.id))}
+          />
+        </div>
+      ))}
+      <div className="control mt-1">
+        <input
+          className="input"
+          value={draft}
+          placeholder="Add a highlight — e.g. Shipped X, improving Y by Z% — and press Enter"
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={onKeyDown}
+          onBlur={addBullets}
+        />
+      </div>
     </div>
   );
 }

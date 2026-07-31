@@ -10,6 +10,7 @@ const api: CareerKitApi = {
   savePreferences: (prefs: Preferences) => ipcRenderer.invoke('prefs:save', prefs),
   getResume: () => ipcRenderer.invoke('resume:get'),
   saveResume: (resume: Resume) => ipcRenderer.invoke('resume:save', resume),
+  importResume: () => ipcRenderer.invoke('resume:import'),
   discoverJobs: (query: string) => ipcRenderer.invoke('discover:search', query),
   importDiscoveredJob: (job: DiscoveredJob) => ipcRenderer.invoke('discover:import', job),
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),

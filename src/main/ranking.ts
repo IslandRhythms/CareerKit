@@ -1,6 +1,7 @@
 import { Preferences, Resume } from '../shared/types';
 import { locationMatches } from '../shared/usStates';
 import { containsPhrase } from '../shared/text';
+import { parseSalaryMax } from '../shared/salary';
 
 export interface RankableJob {
   title: string;
@@ -101,11 +102,8 @@ export function rankJob(job: RankableJob, prefs: Preferences, resume: Resume): R
 
   // Salary: only when the posting exposes numbers we can compare.
   if (prefs.minSalary && job.salaryText) {
-    const numbers = (job.salaryText.match(/\d[\d,]*/g) || [])
-      .map((n) => parseInt(n.replace(/,/g, ''), 10))
-      .map((n) => (n < 1000 ? n * 1000 : n));
-    const max = Math.max(0, ...numbers);
-    if (max >= prefs.minSalary) {
+    const max = parseSalaryMax(job.salaryText);
+    if (max !== null && max >= prefs.minSalary) {
       score += 5;
       reasons.push(`Salary range (${job.salaryText}) meets your minimum`);
     }

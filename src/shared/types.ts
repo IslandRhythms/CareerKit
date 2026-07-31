@@ -86,6 +86,13 @@ export const DEFAULT_PREFERENCES: Preferences = {
   theme: DEFAULT_THEME,
 };
 
+export interface ResumeBullet {
+  id: string;
+  text: string;
+  /** Whether this bullet appears under its experience on the generated resume. */
+  included: boolean;
+}
+
 export interface ResumeExperience {
   id: string;
   company: string;
@@ -94,7 +101,7 @@ export interface ResumeExperience {
   start: string;
   end: string;
   current: boolean;
-  bullets: string[];
+  bullets: ResumeBullet[];
   /** Whether this entry appears on the generated resume. */
   included: boolean;
 }
@@ -155,6 +162,17 @@ export const DEFAULT_RESUME: Resume = {
   projects: [],
 };
 
+/**
+ * Result of parsing an uploaded resume file. `resume` is best-effort parsed
+ * content the renderer merges into the master resume; `warnings` describes
+ * anything the parser could not confidently extract.
+ */
+export interface ResumeImportResult {
+  fileName: string;
+  resume: Resume;
+  warnings: string[];
+}
+
 export interface DiscoveredJob {
   source: Exclude<JobSource, 'manual'>;
   externalId: string;
@@ -165,6 +183,8 @@ export interface DiscoveredJob {
   postedAt: string | null;
   description: string;
   salaryText: string | null;
+  /** Highest number parsed from salaryText, normalized to a yearly figure; null when unparseable. */
+  salaryMaxParsed: number | null;
   score: number;
   reasons: string[];
   inTracker: boolean;
@@ -185,6 +205,7 @@ export interface CareerKitApi {
   savePreferences(prefs: Preferences): Promise<void>;
   getResume(): Promise<Resume>;
   saveResume(resume: Resume): Promise<void>;
+  importResume(): Promise<ResumeImportResult | null>;
   discoverJobs(query: string): Promise<DiscoverResult>;
   importDiscoveredJob(job: DiscoveredJob): Promise<Job>;
   openExternal(url: string): Promise<void>;

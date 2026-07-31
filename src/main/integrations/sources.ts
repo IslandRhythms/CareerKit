@@ -1,9 +1,12 @@
 import { DiscoveredJob, JobicyOptions, RemotiveOptions } from '../../shared/types';
 import { REMOTIVE_CATEGORIES } from '../../shared/remotiveOptions';
-import { formatSalaryRange } from '../../shared/salary';
+import { extractSalaryText, formatSalaryRange } from '../../shared/salary';
 import { decodeEntities, htmlToText } from './html';
 
-export type SourceJob = Omit<DiscoveredJob, 'score' | 'reasons' | 'inTracker' | 'blacklisted'>;
+export type SourceJob = Omit<
+  DiscoveredJob,
+  'score' | 'reasons' | 'inTracker' | 'blacklisted' | 'salaryMaxParsed'
+>;
 
 const FETCH_TIMEOUT_MS = 15000;
 
@@ -127,11 +130,16 @@ export async function fetchJobicy(query: string, options: JobicyOptions): Promis
   );
   return (data.jobs || []).map((job) => {
     // Jobicy reports annual salaries in USD unless salaryCurrency says otherwise.
-    const salaryText = formatSalaryRange(
-      Number(job.annualSalaryMin) || null,
-      Number(job.annualSalaryMax) || null,
-      job.salaryCurrency || 'USD'
-    );
+    // Its API stopped returning the annualSalary fields entirely at some point,
+    // so when they're absent, fall back to finding the salary in the
+    // description text (where postings usually still state it).
+    const description = htmlToText(job.jobDescription || job.jobExcerpt || '');
+    const salaryText =
+      formatSalaryRange(
+        Number(job.annualSalaryMin) || null,
+        Number(job.annualSalaryMax) || null,
+        job.salaryCurrency || 'USD'
+      ) ?? extractSalaryText(description);
     return {
       source: 'jobicy' as const,
       externalId: String(job.id),
@@ -141,7 +149,7 @@ export async function fetchJobicy(query: string, options: JobicyOptions): Promis
       location: job.jobGeo || 'Remote',
       // Jobicy dates look like "2026-07-28 09:15:04" — make it ISO-parseable.
       postedAt: parseDate(job.pubDate ? job.pubDate.replace(' ', 'T') : null),
-      description: htmlToText(job.jobDescription || job.jobExcerpt || ''),
+      description,
       salaryText,
     };
   });
@@ -190,15 +198,19 @@ export async function fetchRemotive(options: RemotiveOptions): Promise<SourceJob
   const jobs = categoryName
     ? feed.filter((job) => (job.category || '').toLowerCase() === categoryName.toLowerCase())
     : feed;
-  return jobs.map((job) => ({
-    source: 'remotive' as const,
-    externalId: String(job.id),
-    title: job.title,
-    company: job.company_name,
-    url: job.url,
-    location: job.candidate_required_location || 'Remote',
-    postedAt: job.publication_date || null,
-    description: htmlToText(job.description || ''),
-    salaryText: job.salary || null,
-  }));
+  return jobs.map((job) => {
+    const description = htmlToText(job.description || '');
+    return {
+      source: 'remotive' as const,
+      externalId: String(job.id),
+      title: job.title,
+      company: job.company_name,
+      url: job.url,
+      location: job.candidate_required_location || 'Remote',
+      postedAt: job.publication_date || null,
+      description,
+      // Remotive's salary field is frequently blank — fall back to the text.
+      salaryText: job.salary || extractSalaryText(description),
+    };
+  });
 }

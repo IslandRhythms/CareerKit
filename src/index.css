@@ -283,12 +283,104 @@ body {
   user-select: none;
 }
 
+.ck-bullet-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.ck-bullet-row .input {
+  flex: 1;
+}
+
+.ck-bullet-row .delete {
+  flex-shrink: 0;
+}
+
+.ck-bullet-toggle {
+  width: 2rem;
+  flex-shrink: 0;
+  font-size: 0.75rem !important;
+}
+
+.ck-bullet-off .input {
+  color: var(--bulma-text-weak, var(--bulma-text));
+  text-decoration: line-through;
+  border-style: dashed;
+  opacity: 0.65;
+}
+
 .ck-include-toggle {
   border-radius: 4px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-size: 0.62rem !important;
   font-weight: 600;
+}
+
+/* ---------- Sticky page toolbar & unsaved state ---------- */
+
+.ck-save-button {
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding-left: 1.6em;
+  padding-right: 1.6em;
+}
+
+.ck-unsaved-hint {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--ck-c-interview) 60%, var(--bulma-text-strong));
+}
+
+.ck-saved-hint {
+  font-size: 0.75rem;
+  color: var(--bulma-text-weak, var(--bulma-text));
+}
+
+/* Sub-tabs within a page — styled to echo the main nav tabs. */
+.ck-subtabs {
+  margin-bottom: 1rem;
+}
+
+.ck-subtabs ul {
+  border-bottom: 1px solid var(--bulma-border);
+}
+
+.ck-subtabs a {
+  padding: 0.5em 1em;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--bulma-text-weak, var(--bulma-text));
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+
+.ck-subtabs a:hover {
+  color: var(--bulma-text-strong);
+  border-bottom-color: var(--bulma-border);
+}
+
+.ck-subtabs li.is-active a {
+  color: var(--ck-accent);
+  border-bottom-color: var(--ck-accent);
+}
+
+/* Sticks a page's title/actions toolbar to the top of the scroll area; the
+   negative margin + matching padding cover .ck-content's 1rem padding. */
+.ck-page-toolbar {
+  position: sticky;
+  top: -1rem;
+  z-index: 25;
+  margin: -1rem -0.25rem 1rem;
+  padding: 1rem 0.25rem 0.6rem;
+  background: color-mix(in srgb, var(--ck-accent) 3%, var(--bulma-scheme-main));
+  border-bottom: 1px solid var(--bulma-border);
 }
 
 /* ---------- Kanban board ---------- */
@@ -377,6 +469,34 @@ body {
 
 .ck-card .card-content {
   padding: 0.55rem 0.7rem !important;
+}
+
+/* ---------- Discover filter bar ---------- */
+
+.ck-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.1rem;
+  margin-bottom: 0.9rem;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--bulma-border);
+  border-radius: var(--ck-radius);
+  background: var(--bulma-scheme-main-bis, var(--bulma-scheme-main));
+}
+
+.ck-filter-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.ck-filter-label {
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--bulma-text-weak, var(--bulma-text));
 }
 
 /* ---------- Discover grid ---------- */
@@ -659,8 +779,7 @@ body {
     overflow: visible;
   }
   .ck-navbar,
-  .ck-resume-toolbar,
-  .ck-save-bar,
+  .ck-page-toolbar,
   button {
     display: none !important;
   }

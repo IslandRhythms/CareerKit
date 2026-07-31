@@ -2,6 +2,7 @@ import { ipcMain, shell } from 'electron';
 import { DiscoveredJob, NewJob, Preferences, Resume } from '../shared/types';
 import * as db from './db';
 import { discoverJobs } from './discover';
+import { importResumeFromFile } from './resumeImport';
 
 export function registerIpcHandlers(): void {
   ipcMain.handle('jobs:list', () => db.listJobs());
@@ -16,6 +17,7 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('resume:get', () => db.getResume());
   ipcMain.handle('resume:save', (_event, resume: Resume) => db.saveResume(resume));
+  ipcMain.handle('resume:import', () => importResumeFromFile());
 
   ipcMain.handle('discover:search', (_event, query: string) => discoverJobs(query));
   ipcMain.handle('discover:import', (_event, job: DiscoveredJob) =>

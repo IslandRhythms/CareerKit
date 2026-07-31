@@ -9,6 +9,7 @@ import {
   NewJob,
   Preferences,
   Resume,
+  ResumeBullet,
 } from '../shared/types';
 
 let db: Database.Database;
@@ -188,7 +189,7 @@ export function savePreferences(prefs: Preferences): void {
 
 /**
  * Migrates resumes saved before the include/exclude model: bare-string skills
- * become skill objects and entries missing `included` default to true.
+ * and bullets become objects, and entries missing `included` default to true.
  */
 function normalizeResume(resume: Resume): Resume {
   const withIncluded = <T extends { included: boolean }>(items: T[] | undefined): T[] =>
@@ -201,7 +202,14 @@ function normalizeResume(resume: Resume): Resume {
         ? { id: randomUUID(), name: skill, included: true }
         : { ...skill, included: skill.included !== false }
     ),
-    experience: withIncluded(resume.experience),
+    experience: withIncluded(resume.experience).map((exp) => ({
+      ...exp,
+      bullets: ((exp.bullets ?? []) as Array<ResumeBullet | string>).map((bullet) =>
+        typeof bullet === 'string'
+          ? { id: randomUUID(), text: bullet, included: true }
+          : { ...bullet, included: bullet.included !== false }
+      ),
+    })),
     education: withIncluded(resume.education),
     projects: withIncluded(resume.projects),
   };
