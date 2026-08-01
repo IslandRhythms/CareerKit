@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DiscoveredJob } from '../../shared/types';
+import { JobBoardsPanel } from '../components/JobBoardsPanel';
 
 function scoreClass(score: number): string {
   if (score >= 70) return 'ck-score-high';
@@ -57,6 +58,7 @@ export function DiscoverPage() {
   const [salaryFilter, setSalaryFilter] = useState<SalaryFilter>('any');
   const [hideSaved, setHideSaved] = useState(false);
   const [hideBlacklisted, setHideBlacklisted] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const search = async (q: string) => {
     setLoading(true);
@@ -95,6 +97,24 @@ export function DiscoverPage() {
     setHideSaved(false);
     setHideBlacklisted(false);
   };
+
+  const filterSummary = [
+    SORT_LABELS[sort],
+    sourceFilter !== 'all' ? SOURCE_LABELS[sourceFilter] : null,
+    minScore > 0 ? `Fit ${minScore}+` : null,
+    postedWithin > 0
+      ? POSTED_OPTIONS.find((option) => option.hours === postedWithin)?.label
+      : null,
+    salaryFilter === 'listed'
+      ? 'Salary listed'
+      : salaryFilter === 'range' && minSalaryPref
+        ? `Min $${minSalaryPref.toLocaleString()}`
+        : null,
+    hideSaved ? 'Hide saved' : null,
+    hideBlacklisted ? 'Hide blacklisted' : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   const visible = useMemo(() => {
     const now = Date.now();
@@ -178,106 +198,130 @@ export function DiscoverPage() {
         </div>
       </div>
 
+      <JobBoardsPanel onSaved={() => search(query)} />
+
       {searched && (
-        <div className="ck-filter-bar">
-          <span className="ck-filter-group">
-            <span className="ck-filter-label">Sort</span>
-            <span className="select is-small">
-              <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
-                {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
-                  <option key={key} value={key}>
-                    {SORT_LABELS[key]}
-                  </option>
-                ))}
-              </select>
-            </span>
-          </span>
-          <span className="ck-filter-group">
-            <span className="ck-filter-label">Source</span>
-            <span className="select is-small">
-              <select
-                value={sourceFilter}
-                onChange={(e) => setSourceFilter(e.target.value as typeof sourceFilter)}
-              >
-                <option value="all">All sources</option>
-                {(Object.keys(SOURCE_LABELS) as DiscoveredJob['source'][]).map((source) => (
-                  <option key={source} value={source}>
-                    {SOURCE_LABELS[source]}
-                  </option>
-                ))}
-              </select>
-            </span>
-          </span>
-          <span className="ck-filter-group">
-            <span className="ck-filter-label">Min fit</span>
-            <span className="select is-small">
-              <select value={minScore} onChange={(e) => setMinScore(Number(e.target.value))}>
-                <option value={0}>Any</option>
-                <option value={40}>40+</option>
-                <option value={70}>70+</option>
-              </select>
-            </span>
-          </span>
-          <span className="ck-filter-group">
-            <span className="ck-filter-label">Posted</span>
-            <span className="select is-small">
-              <select
-                value={postedWithin}
-                onChange={(e) => setPostedWithin(Number(e.target.value))}
-              >
-                {POSTED_OPTIONS.map((option) => (
-                  <option key={option.hours} value={option.hours}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </span>
-          </span>
-          <span className="ck-filter-group">
-            <span className="ck-filter-label">Salary</span>
-            <span className="select is-small">
-              <select
-                value={salaryFilter}
-                onChange={(e) => setSalaryFilter(e.target.value as SalaryFilter)}
-              >
-                <option value="any">Any</option>
-                <option value="listed">Salary listed</option>
-                <option value="range" disabled={!minSalaryPref}>
-                  {minSalaryPref
-                    ? `Meets my minimum ($${minSalaryPref.toLocaleString()})`
-                    : 'Meets my minimum (none set)'}
-                </option>
-              </select>
-            </span>
-          </span>
-          <label className="checkbox is-size-7">
-            <input
-              type="checkbox"
-              checked={hideSaved}
-              onChange={(e) => setHideSaved(e.target.checked)}
-            />{' '}
-            Hide saved
-          </label>
-          <label className="checkbox is-size-7">
-            <input
-              type="checkbox"
-              checked={hideBlacklisted}
-              onChange={(e) => setHideBlacklisted(e.target.checked)}
-            />{' '}
-            Hide blacklisted
-          </label>
-          {filtersActive && (
-            <a className="is-size-7" onClick={resetFilters}>
-              Reset filters
-            </a>
-          )}
-          <a
-            className="is-size-7"
-            style={{ marginLeft: 'auto' }}
-            onClick={() => setShowScoring(true)}
+        <div className={`ck-collapse ${filtersOpen ? 'is-open' : ''}`}>
+          <button
+            type="button"
+            className="ck-collapse-toggle"
+            onClick={() => setFiltersOpen((value) => !value)}
+            aria-expanded={filtersOpen}
           >
-            How is fit scored?
-          </a>
+            <span className="ck-collapse-chevron" aria-hidden>
+              {filtersOpen ? '▾' : '▸'}
+            </span>
+            <span className="ck-collapse-title">Sort & Filters</span>
+            {!filtersOpen && <span className="ck-collapse-summary">{filterSummary}</span>}
+            {filtersActive && !filtersOpen && (
+              <span className="ck-unsaved-hint">● Filtered</span>
+            )}
+          </button>
+
+          {filtersOpen && (
+            <div className="ck-collapse-body">
+              <div className="ck-filter-bar">
+                <span className="ck-filter-group">
+                  <span className="ck-filter-label">Sort</span>
+                  <span className="select is-small">
+                    <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+                      {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
+                        <option key={key} value={key}>
+                          {SORT_LABELS[key]}
+                        </option>
+                      ))}
+                    </select>
+                  </span>
+                </span>
+                <span className="ck-filter-group">
+                  <span className="ck-filter-label">Source</span>
+                  <span className="select is-small">
+                    <select
+                      value={sourceFilter}
+                      onChange={(e) => setSourceFilter(e.target.value as typeof sourceFilter)}
+                    >
+                      <option value="all">All sources</option>
+                      {(Object.keys(SOURCE_LABELS) as DiscoveredJob['source'][]).map((source) => (
+                        <option key={source} value={source}>
+                          {SOURCE_LABELS[source]}
+                        </option>
+                      ))}
+                    </select>
+                  </span>
+                </span>
+                <span className="ck-filter-group">
+                  <span className="ck-filter-label">Min fit</span>
+                  <span className="select is-small">
+                    <select value={minScore} onChange={(e) => setMinScore(Number(e.target.value))}>
+                      <option value={0}>Any</option>
+                      <option value={40}>40+</option>
+                      <option value={70}>70+</option>
+                    </select>
+                  </span>
+                </span>
+                <span className="ck-filter-group">
+                  <span className="ck-filter-label">Posted</span>
+                  <span className="select is-small">
+                    <select
+                      value={postedWithin}
+                      onChange={(e) => setPostedWithin(Number(e.target.value))}
+                    >
+                      {POSTED_OPTIONS.map((option) => (
+                        <option key={option.hours} value={option.hours}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </span>
+                </span>
+                <span className="ck-filter-group">
+                  <span className="ck-filter-label">Salary</span>
+                  <span className="select is-small">
+                    <select
+                      value={salaryFilter}
+                      onChange={(e) => setSalaryFilter(e.target.value as SalaryFilter)}
+                    >
+                      <option value="any">Any</option>
+                      <option value="listed">Salary listed</option>
+                      <option value="range" disabled={!minSalaryPref}>
+                        {minSalaryPref
+                          ? `Meets my minimum ($${minSalaryPref.toLocaleString()})`
+                          : 'Meets my minimum (none set)'}
+                      </option>
+                    </select>
+                  </span>
+                </span>
+                <label className="checkbox is-size-7">
+                  <input
+                    type="checkbox"
+                    checked={hideSaved}
+                    onChange={(e) => setHideSaved(e.target.checked)}
+                  />{' '}
+                  Hide saved
+                </label>
+                <label className="checkbox is-size-7">
+                  <input
+                    type="checkbox"
+                    checked={hideBlacklisted}
+                    onChange={(e) => setHideBlacklisted(e.target.checked)}
+                  />{' '}
+                  Hide blacklisted
+                </label>
+                {filtersActive && (
+                  <a className="is-size-7" onClick={resetFilters}>
+                    Reset filters
+                  </a>
+                )}
+                <a
+                  className="is-size-7"
+                  style={{ marginLeft: 'auto' }}
+                  onClick={() => setShowScoring(true)}
+                >
+                  How is fit scored?
+                </a>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -300,8 +344,8 @@ export function DiscoverPage() {
 
       {searched && jobs.length === 0 && !loading && (
         <div className="notification is-light">
-          No results. Try different keywords, or add Greenhouse boards / Lever companies in
-          Preferences.
+          No results. Try different keywords, or add Greenhouse boards / Lever companies under Job
+          Boards.
         </div>
       )}
 

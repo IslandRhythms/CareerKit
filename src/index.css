@@ -371,6 +371,99 @@ body {
   border-bottom-color: var(--ck-accent);
 }
 
+.ck-board-tabs a {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  padding-top: 0.45em;
+  padding-bottom: 0.45em;
+}
+
+.ck-board-tab-label {
+  line-height: 1.2;
+}
+
+.ck-board-tab-hint {
+  font-size: 0.65rem;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0.01em;
+  color: var(--bulma-text-weak, var(--bulma-text));
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ck-board-tabs li.is-active .ck-board-tab-hint {
+  color: color-mix(in srgb, var(--ck-accent) 70%, var(--bulma-text-weak, var(--bulma-text)));
+}
+
+/* Collapsible section (e.g. Job Boards on Discover). */
+.ck-collapse {
+  border: 1px solid var(--bulma-border);
+  border-radius: var(--ck-radius);
+  background: var(--bulma-scheme-main-bis, var(--bulma-scheme-main));
+  margin-bottom: 0.9rem;
+}
+
+.ck-collapse-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.65rem 0.9rem;
+  border: none;
+  background: transparent;
+  color: var(--bulma-text-strong);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.ck-collapse-toggle:hover {
+  background: color-mix(in srgb, var(--ck-accent) 4%, transparent);
+}
+
+.ck-collapse-chevron {
+  width: 0.85rem;
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  color: var(--bulma-text-weak, var(--bulma-text));
+}
+
+.ck-collapse-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.ck-collapse-summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  color: var(--bulma-text-weak, var(--bulma-text));
+}
+
+.ck-collapse-body {
+  padding: 0 0.9rem 0.9rem;
+  border-top: 1px solid var(--bulma-border);
+}
+
+.ck-collapse-toolbar .level-left,
+.ck-collapse-toolbar .level-right {
+  margin-bottom: 0;
+}
+
+.ck-collapse-toolbar {
+  padding-top: 0.75rem;
+}
+
 /* Sticks a page's title/actions toolbar to the top of the scroll area; the
    negative margin + matching padding cover .ck-content's 1rem padding. */
 .ck-page-toolbar {
@@ -483,6 +576,15 @@ body {
   border: 1px solid var(--bulma-border);
   border-radius: var(--ck-radius);
   background: var(--bulma-scheme-main-bis, var(--bulma-scheme-main));
+}
+
+.ck-collapse-body .ck-filter-bar {
+  margin-bottom: 0;
+  margin-top: 0.75rem;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
 }
 
 .ck-filter-group {

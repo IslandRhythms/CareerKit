@@ -1,27 +1,11 @@
 import { useEffect, useState } from 'react';
-import {
-  DEFAULT_PREFERENCES,
-  JobicyOptions,
-  Preferences,
-  RemotePreference,
-} from '../../shared/types';
-import { JOBICY_GEOS, JOBICY_INDUSTRIES } from '../../shared/jobicyOptions';
-import { REMOTIVE_CATEGORIES } from '../../shared/remotiveOptions';
+import { DEFAULT_PREFERENCES, Preferences, RemotePreference } from '../../shared/types';
 import { TagInput } from '../components/TagInput';
 import { LocationPicker } from '../components/LocationPicker';
-
-function DocLink({ label, url }: { label: string; url: string }) {
-  return (
-    <a className="tag is-link is-light" onClick={() => window.careerkit.openExternal(url)}>
-      {label} API docs ↗
-    </a>
-  );
-}
 
 const PREF_TABS = [
   { id: 'matching', label: 'Matching' },
   { id: 'location', label: 'Location & Pay' },
-  { id: 'boards', label: 'Job Boards' },
 ] as const;
 
 type PrefTab = (typeof PREF_TABS)[number]['id'];
@@ -46,12 +30,22 @@ export function PreferencesPage() {
   const set = <K extends keyof Preferences>(key: K, value: Preferences[K]) =>
     setPrefs((p) => ({ ...p, [key]: value }));
 
-  const setJobicy = (changes: Partial<JobicyOptions>) =>
-    setPrefs((p) => ({ ...p, jobicy: { ...p.jobicy, ...changes } }));
-
   const save = async () => {
-    await window.careerkit.savePreferences(prefs);
-    setSavedJson(JSON.stringify(prefs));
+    // Re-fetch so saving matching/location never clobbers board settings saved elsewhere.
+    const current = await window.careerkit.getPreferences();
+    const next: Preferences = {
+      ...current,
+      titles: prefs.titles,
+      skills: prefs.skills,
+      avoidKeywords: prefs.avoidKeywords,
+      blacklistedCompanies: prefs.blacklistedCompanies,
+      remote: prefs.remote,
+      locations: prefs.locations,
+      minSalary: prefs.minSalary,
+    };
+    await window.careerkit.savePreferences(next);
+    setPrefs(next);
+    setSavedJson(JSON.stringify(next));
     setSavedFlash(true);
     setTimeout(() => setSavedFlash(false), 2000);
   };
@@ -160,114 +154,6 @@ export function PreferencesPage() {
           </div>
         </div>
       )}
-
-      {tab === 'boards' && (
-        <div className="box">
-          <p className="is-size-7 has-text-grey mb-4">
-            The remote-jobs aggregators Remotive and Jobicy are always searched. You can also follow
-            specific companies' boards on Greenhouse and Lever.
-          </p>
-          <TagInput
-            label="Greenhouse Boards"
-            values={prefs.greenhouseBoards}
-            onChange={(v) => set('greenhouseBoards', v)}
-            placeholder="e.g. stripe, cloudflare"
-            help="The board token from the careers URL: boards.greenhouse.io/⟨token⟩"
-          />
-          <TagInput
-            label="Lever Companies"
-            values={prefs.leverCompanies}
-            onChange={(v) => set('leverCompanies', v)}
-            placeholder="e.g. plaid"
-            help="The company slug from the careers URL: jobs.lever.co/⟨company⟩"
-          />
-
-          <h3 className="title is-6 mt-5 mb-2">Remotive Search Options</h3>
-          <div className="field">
-            <label className="label">Category</label>
-            <div className="select is-fullwidth">
-              <select
-                value={prefs.remotive.category}
-                onChange={(e) => set('remotive', { category: e.target.value })}
-              >
-                <option value="">All categories</option>
-                {REMOTIVE_CATEGORIES.map((c) => (
-                  <option key={c.slug} value={c.slug}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <p className="help">
-              Remotive limits API usage, so its feed is cached for 6 hours. Category and keyword
-              filtering happen locally on the cached feed.
-            </p>
-          </div>
-
-          <h3 className="title is-6 mt-5 mb-2">Jobicy Search Options</h3>
-          <div className="columns">
-            <div className="column">
-              <div className="field">
-                <label className="label">Region</label>
-                <div className="select is-fullwidth">
-                  <select
-                    value={prefs.jobicy.geo}
-                    onChange={(e) => setJobicy({ geo: e.target.value })}
-                  >
-                    <option value="">Anywhere</option>
-                    {JOBICY_GEOS.map((g) => (
-                      <option key={g.slug} value={g.slug}>
-                        {g.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-            <div className="column">
-              <div className="field">
-                <label className="label">Industry</label>
-                <div className="select is-fullwidth">
-                  <select
-                    value={prefs.jobicy.industry}
-                    onChange={(e) => setJobicy({ industry: e.target.value })}
-                  >
-                    <option value="">All industries</option>
-                    {JOBICY_INDUSTRIES.map((i) => (
-                      <option key={i.slug} value={i.slug}>
-                        {i.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-            <div className="column is-narrow">
-              <div className="field">
-                <label className="label">Max Results</label>
-                <input
-                  type="number"
-                  className="input"
-                  style={{ width: '7rem' }}
-                  min={1}
-                  max={100}
-                  value={prefs.jobicy.count}
-                  onChange={(e) => setJobicy({ count: Number(e.target.value) || 50 })}
-                />
-              </div>
-            </div>
-          </div>
-
-          <h3 className="title is-6 mt-4 mb-2">API Documentation</h3>
-          <div className="tags">
-            <DocLink label="Greenhouse" url="https://developers.greenhouse.io/job-board.html" />
-            <DocLink label="Lever" url="https://github.com/lever/postings-api" />
-            <DocLink label="Remotive" url="https://github.com/remotive-com/remote-jobs-api" />
-            <DocLink label="Jobicy" url="https://jobicy.com/jobs-rss-feed" />
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }
