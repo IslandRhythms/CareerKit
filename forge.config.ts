@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import type { ForgeConfig } from '@electron-forge/shared-types';
 import { MakerSquirrel } from '@electron-forge/maker-squirrel';
 import { MakerZIP } from '@electron-forge/maker-zip';
@@ -11,16 +13,26 @@ import { FuseV1Options, FuseVersion } from '@electron/fuses';
 import { mainConfig } from './webpack.main.config';
 import { rendererConfig } from './webpack.renderer.config';
 
+const appIcon = path.resolve(__dirname, 'icon');
+
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
+    icon: appIcon,
+    appUserModelId: 'com.careerkit.app',
   },
   rebuildConfig: {},
   makers: [
-    new MakerSquirrel({}),
+    new MakerSquirrel({
+      setupIcon: `${appIcon}.ico`,
+    }),
     new MakerZIP({}, ['darwin']),
     new MakerRpm({}),
-    new MakerDeb({}),
+    new MakerDeb({
+      options: {
+        icon: `${appIcon}.png`,
+      },
+    }),
   ],
   plugins: [
     new AutoUnpackNativesPlugin({}),
