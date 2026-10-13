@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { TrackerPage } from './pages/TrackerPage';
 import { DiscoverPage } from './pages/DiscoverPage';
 import { PreferencesPage } from './pages/PreferencesPage';
@@ -32,12 +32,7 @@ export function App() {
     offers: 0,
   });
 
-  useEffect(() => {
-    window.careerkit.getPreferences().then((prefs) => applyTheme(prefs.theme));
-  }, []);
-
-  // Refresh the pipeline readout whenever the user switches pages.
-  useEffect(() => {
+  const refreshStats = useCallback(() => {
     window.careerkit.listJobs().then((jobs) =>
       setStats({
         tracked: jobs.length,
@@ -46,7 +41,15 @@ export function App() {
         offers: jobs.filter((j) => j.status === 'offer').length,
       })
     );
-  }, [page]);
+  }, []);
+
+  useEffect(() => {
+    window.careerkit.getPreferences().then((prefs) => applyTheme(prefs.theme));
+  }, []);
+
+  useEffect(() => {
+    refreshStats();
+  }, [refreshStats, page]);
 
   return (
     <div className="ck-shell">
@@ -73,8 +76,8 @@ export function App() {
         </div>
       </nav>
       <main className="ck-content p-4">
-        {page === 'tracker' && <TrackerPage />}
-        {page === 'discover' && <DiscoverPage />}
+        {page === 'tracker' && <TrackerPage onJobsChanged={refreshStats} />}
+        {page === 'discover' && <DiscoverPage onJobsChanged={refreshStats} />}
         {page === 'resume' && <ResumePage />}
         {page === 'preferences' && <PreferencesPage />}
         {page === 'settings' && <SettingsPage />}

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DiscoveredJob } from '../../shared/types';
 import { JobBoardsPanel } from '../components/JobBoardsPanel';
+import { showToast } from '../toast';
 
 function scoreClass(score: number): string {
   if (score >= 70) return 'ck-score-high';
@@ -40,7 +41,7 @@ type SalaryFilter = 'any' | 'listed' | 'range';
 
 const PAGE_SIZE = 30;
 
-export function DiscoverPage() {
+export function DiscoverPage({ onJobsChanged }: { onJobsChanged(): void }) {
   const [query, setQuery] = useState('');
   const [jobs, setJobs] = useState<DiscoveredJob[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
@@ -152,11 +153,18 @@ export function DiscoverPage() {
   const shown = visible.slice(0, visibleCount);
 
   const importJob = async (job: DiscoveredJob) => {
-    await window.careerkit.importDiscoveredJob(job);
+    try {
+      await window.careerkit.importDiscoveredJob(job);
+    } catch {
+      showToast(`Could not save ${job.title}`, 'is-danger');
+      return;
+    }
     const markSaved = (j: DiscoveredJob) =>
       j.source === job.source && j.externalId === job.externalId ? { ...j, inTracker: true } : j;
     setJobs((current) => current.map(markSaved));
     setDetail((current) => (current ? markSaved(current) : current));
+    showToast(`Saved ${job.title} to the tracker`);
+    onJobsChanged();
   };
 
   return (

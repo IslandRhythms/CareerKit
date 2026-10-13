@@ -181,6 +181,11 @@ body {
   color: var(--bulma-text-weak, var(--bulma-text));
 }
 
+.ck-toast {
+  margin-bottom: 0.5rem;
+  box-shadow: 0 8px 24px hsl(0deg 0% 0% / 0.18);
+}
+
 .ck-content {
   flex-grow: 1;
   overflow-y: auto;
@@ -882,6 +887,7 @@ body {
   }
   .ck-navbar,
   .ck-page-toolbar,
+  .ck-toast,
   button {
     display: none !important;
   }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   JOB_STATUSES,
   JOB_STATUS_LABELS,
@@ -7,6 +8,7 @@ import {
   NewJob,
 } from '../../shared/types';
 import { US_STATES } from '../../shared/usStates';
+import { showToast } from '../toast';
 
 const EMPTY_FORM: NewJob = {
   title: '',
@@ -23,24 +25,34 @@ const EMPTY_FORM: NewJob = {
   appliedAt: null,
 };
 
-export function TrackerPage() {
+export function TrackerPage({ onJobsChanged }: { onJobsChanged(): void }) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [editing, setEditing] = useState<Job | 'new' | null>(null);
   const [dragOver, setDragOver] = useState<JobStatus | null>(null);
 
-  const reload = () => window.careerkit.listJobs().then(setJobs);
+  const reload = () =>
+    window.careerkit.listJobs().then((next) => {
+      setJobs(next);
+      onJobsChanged();
+    });
   useEffect(() => {
     reload();
   }, []);
 
   const moveJob = async (id: number, status: JobStatus) => {
-    const changes: Partial<NewJob> = { status };
     const job = jobs.find((j) => j.id === id);
-    if (status === 'applied' && job && !job.appliedAt) {
+    if (!job || job.status === status) return;
+    const changes: Partial<NewJob> = { status };
+    if (status === 'applied' && !job.appliedAt) {
       changes.appliedAt = new Date().toISOString().slice(0, 10);
     }
-    await window.careerkit.updateJob(id, changes);
-    reload();
+    try {
+      await window.careerkit.updateJob(id, changes);
+      showToast(`Moved ${job.title} to ${JOB_STATUS_LABELS[status]}`);
+      reload();
+    } catch {
+      showToast(`Could not move ${job.title}`, 'is-danger');
+    }
   };
 
   return (
@@ -147,6 +159,8 @@ function JobModal({
       : EMPTY_FORM
   );
   const [saving, setSaving] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const set = <K extends keyof NewJob>(key: K, value: NewJob[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -155,25 +169,37 @@ function JobModal({
     if (!form.title.trim() || !form.company.trim()) return;
     setSaving(true);
     try {
+      const title = form.title.trim();
       if (job) {
         await window.careerkit.updateJob(job.id, form);
+        showToast(`Saved changes to ${title}`);
       } else {
         await window.careerkit.createJob(form);
+        showToast(`Added ${title}`);
       }
       onSaved();
+    } catch {
+      showToast('Could not save that job', 'is-danger');
     } finally {
       setSaving(false);
     }
   };
 
   const remove = async () => {
-    if (job && confirm(`Delete "${job.title}" at ${job.company}?`)) {
+    if (!job || deleting) return;
+    const title = job.title;
+    setDeleting(true);
+    try {
       await window.careerkit.deleteJob(job.id);
+      showToast(`Deleted ${title}`, 'is-danger');
       onSaved();
+    } catch {
+      showToast(`Could not delete ${title}`, 'is-danger');
+      setDeleting(false);
     }
   };
 
-  return (
+  return createPortal(
     <div className="modal is-active">
       <div className="modal-background" onClick={onClose} />
       <div className="modal-card ck-modal">
@@ -309,23 +335,50 @@ function JobModal({
         <footer className="modal-card-foot is-justify-content-space-between">
           <div>
             <button
+              type="button"
               className={`button is-primary ${saving ? 'is-loading' : ''}`}
-              disabled={!form.title.trim() || !form.company.trim()}
+              disabled={!form.title.trim() || !form.company.trim() || deleting}
               onClick={save}
             >
               Save
             </button>
-            <button className="button ml-2" onClick={onClose}>
+            <button type="button" className="button ml-2" onClick={onClose} disabled={deleting}>
               Cancel
             </button>
           </div>
-          {job && (
-            <button className="button is-danger is-outlined" onClick={remove}>
-              Delete
-            </button>
-          )}
+          {job &&
+            (confirmingDelete ? (
+              <div className="is-flex is-align-items-center">
+                <span className="is-size-7 has-text-danger mr-3">Delete this job?</span>
+                <button
+                  type="button"
+                  className={`button is-danger ${deleting ? 'is-loading' : ''}`}
+                  onClick={remove}
+                  disabled={deleting}
+                >
+                  Delete
+                </button>
+                <button
+                  type="button"
+                  className="button ml-2"
+                  onClick={() => setConfirmingDelete(false)}
+                  disabled={deleting}
+                >
+                  Keep
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="button is-danger is-outlined"
+                onClick={() => setConfirmingDelete(true)}
+              >
+                Delete
+              </button>
+            ))}
         </footer>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
