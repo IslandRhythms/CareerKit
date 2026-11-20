@@ -8,14 +8,22 @@ import {
   ResumeSkill,
 } from '../shared/types';
 
-type SectionKey = 'summary' | 'skills' | 'experience' | 'education' | 'projects';
+type SectionKey = 'summary' | 'skills' | 'experience' | 'education' | 'projects' | 'other';
 
+// `other` headers are sections the importer does not model (certifications,
+// volunteering…). Recognizing them matters so their lines end the previous
+// section instead of being read as extra jobs or degrees. Listed first so
+// "Volunteer Experience" is not caught by the experience pattern.
 const SECTION_HEADERS: Array<{ key: SectionKey; re: RegExp }> = [
   {
-    key: 'experience',
-    re: /^(work|professional|employment|relevant)?\s*(experience|history)$/i,
+    key: 'other',
+    re: /^(certifications?|licenses?( (&|and) certifications?)?|awards?( (&|and) honors)?|honors?( (&|and) awards?)?|volunteer(ing| experience| work)?|community (involvement|service)|interests|hobbies( (&|and) interests)?|languages|publications|leadership( experience)?|activities|extracurriculars?|references|affiliations|memberships|courses|(relevant )?coursework|additional (information|skills)|accomplishments|patents|speaking|talks|teaching)$/i,
   },
-  { key: 'education', re: /^education(al background)?$/i },
+  {
+    key: 'experience',
+    re: /^(work|professional|employment|relevant|career)?\s*(experience|history|employment)$/i,
+  },
+  { key: 'education', re: /^education(al background| (&|and) (certifications?|training))?$/i },
   {
     key: 'skills',
     re: /^(technical |core |key )?(skills?|competencies|technologies)( (&|and) \w+)?$/i,
@@ -32,7 +40,13 @@ const DATE_RANGE = new RegExp(
 );
 const PRESENT_RE = /present|current|now|ongoing/i;
 
-const BULLET_RE = /^\s*(?:[•◦▪●○‣∙·*]|-|–|—)\s+/;
+// Symbol bullets may butt directly against the text in PDF extractions
+// ("•Shipped…"); dash bullets still need a space so "-5%" is not a bullet.
+const BULLET_RE = /^\s*(?:[•◦▪●○‣∙·*➢➤►▶✓]\s*|[-–—]\s+)/;
+// A date range glued to the preceding text ("Seattle, WAMar 2020 – Present").
+const GLUED_DATE_RE = new RegExp(`(?<=[\\p{L}.)])(?=${DATE_RANGE.source})`, 'giu');
+// Headers rendered with letter spacing come through as "E X P E R I E N C E".
+const LETTER_SPACED_RE = /^(?:[A-Za-z&]\s){3,}[A-Za-z]$/;
 const URL_RE = /(https?:\/\/\S+|(?:www\.|github\.com\/|gitlab\.com\/|linkedin\.com\/|bitbucket\.org\/)\S+)/i;
 const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/;
 const PHONE_RE = /(?:\+?\d{1,2}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)/;
@@ -62,7 +76,7 @@ function stripDates(line: string): string {
 /** Split "Software Engineer — Acme | Austin, TX"-style lines into segments. */
 function segments(line: string): string[] {
   return line
-    .split(/\t+|\s{2,}|\s+\|\s+|\s+[–—]\s+|\s+·\s+|\s+•\s+/)
+    .split(/\t+|\s{2,}|\s*[|•·]\s*|\s+[–—]\s+/)
     .map((part) => part.replace(/^[,|]+|[,|]+$/g, '').trim())
     .filter(Boolean);
 }
@@ -71,22 +85,31 @@ interface Sections {
   preamble: string[];
   bodies: Partial<Record<SectionKey, string[]>>;
   found: SectionKey[];
+  /** Headers of recognized-but-unsupported sections, for the warnings list. */
+  skipped: string[];
 }
 
 function splitSections(lines: string[]): Sections {
   const preamble: string[] = [];
   const bodies: Partial<Record<SectionKey, string[]>> = {};
   const found: SectionKey[] = [];
+  const skipped: string[] = [];
   let currentBody: string[] | null = null;
 
   for (const raw of lines) {
-    const line = raw.replace(/\s+$/g, '');
-    const candidate = line.trim().replace(/:$/, '').trim();
+    const line = raw.replace(/\s+$/g, '').replace(GLUED_DATE_RE, '  ');
+    let candidate = line.trim().replace(/:$/, '').trim();
+    if (LETTER_SPACED_RE.test(candidate)) candidate = candidate.replace(/\s/g, '');
     const header =
       candidate.length > 0 && candidate.length <= 40
         ? SECTION_HEADERS.find((h) => h.re.test(candidate))
         : undefined;
     if (header) {
+      if (header.key === 'other') {
+        skipped.push(candidate);
+        currentBody = [];
+        continue;
+      }
       let body = bodies[header.key];
       if (!body) {
         body = [];
@@ -99,7 +122,7 @@ function splitSections(lines: string[]): Sections {
     if (currentBody) currentBody.push(line);
     else preamble.push(line);
   }
-  return { preamble, bodies, found };
+  return { preamble, bodies, found, skipped };
 }
 
 function parseContact(preamble: string[], resume: Resume): void {
@@ -119,18 +142,23 @@ function parseContact(preamble: string[], resume: Resume): void {
   resume.links = [...links];
 
   const contentLines = preamble.map((l) => l.trim()).filter(Boolean);
-  for (const line of contentLines.slice(0, 5)) {
-    const words = line.split(/\s+/);
-    if (
+  const looksLikeName = (text: string) => {
+    const words = text.split(/\s+/);
+    return (
       words.length >= 2 &&
       words.length <= 4 &&
-      line.length <= 40 &&
-      /^[A-Za-z .,'-]+$/.test(line) &&
-      !LOCATION_RE.test(line) &&
-      !TITLE_RE.test(line)
-    ) {
-      resume.fullName = line;
-      break;
+      text.length <= 40 &&
+      /^[\p{L} .,'-]+$/u.test(text) &&
+      !LOCATION_RE.test(text) &&
+      !TITLE_RE.test(text)
+    );
+  };
+  outer: for (const line of contentLines.slice(0, 5)) {
+    for (const seg of [line, ...segments(line)]) {
+      if (looksLikeName(seg)) {
+        resume.fullName = seg;
+        break outer;
+      }
     }
   }
 
@@ -157,6 +185,23 @@ interface RawEntry {
   end: string;
   current: boolean;
   bullets: string[];
+}
+
+/**
+ * Whether a plain line is the wrapped tail of the previous bullet rather than
+ * a new heading: mid-sentence starts, or the bullet before it has no terminal
+ * punctuation and this line reads like prose instead of a title/company line.
+ */
+function isContinuation(line: string, previous: string | undefined): boolean {
+  if (!previous) return false;
+  if (/^[\p{Ll}]/u.test(line)) return true;
+  if (/[.!?:;]$/.test(previous)) return false;
+  if (DATE_RANGE.test(line) || TITLE_RE.test(line) || LOCATION_RE.test(line)) return false;
+  return /[.!?]$/.test(line) || line.split(/\s+/).length > 6;
+}
+
+function appendToLastBullet(entry: RawEntry, line: string): void {
+  entry.bullets[entry.bullets.length - 1] += ` ${line}`;
 }
 
 function collectDatedEntries(lines: string[]): RawEntry[] {
@@ -194,9 +239,12 @@ function collectDatedEntries(lines: string[]): RawEntry[] {
       continue;
     }
 
-    // Plain line: early lines extend the entry head, later ones likely belong
-    // to the next entry (kept in `pending` until its date line shows up).
-    if (cur && cur.bullets.length === 0 && cur.head.length < 2) {
+    // Plain line: early lines extend the entry head, wrapped bullet text is
+    // glued back onto its bullet, and anything else likely belongs to the next
+    // entry (kept in `pending` until its date line shows up).
+    if (cur && cur.bullets.length > 0 && isContinuation(line, cur.bullets[cur.bullets.length - 1])) {
+      appendToLastBullet(cur, line);
+    } else if (cur && cur.bullets.length === 0 && cur.head.length < 2) {
       cur.head.push(line);
     } else if (cur && !hasBulletMarkers) {
       cur.bullets.push(line);
@@ -300,9 +348,33 @@ function parseEducation(lines: string[]): ResumeEducation[] {
       const degreeSeg = segments(text).find((s) => DEGREE_RE.test(s)) ?? text;
       // Split at " in " so "Bachelor of Science in X" keeps its full degree name.
       const inField = /(.+?)\s+in\s+(.+)/.exec(degreeSeg);
+      const leading = DEGREE_RE.exec(degreeSeg);
       if (inField) {
         cur.degree = inField[1].trim();
         cur.field = inField[2].replace(/[,;].*$/, '').trim();
+      } else if (leading && leading.index === 0) {
+        // "M.S. Computer Science" / "Bachelor of Arts, Economics": the degree
+        // is the leading token (plus an "of …" tail), the rest is the field.
+        let degree = leading[0];
+        let rest = degreeSeg.slice(degree.length);
+        // \b cannot sit between "." and a space, so "M.S." matches as "M.S".
+        if (rest.startsWith('.')) {
+          degree += '.';
+          rest = rest.slice(1);
+        }
+        const ofTail = /^\s+of\s+[A-Z][a-z]+(?:\s+(?:Administration|Arts|Science|Engineering|Technology))?/.exec(
+          rest
+        );
+        if (ofTail) {
+          degree += ofTail[0];
+          rest = rest.slice(ofTail[0].length);
+        }
+        cur.degree = degree.trim();
+        cur.field = rest
+          .replace(/^[\s,:;–—-]+/, '')
+          .replace(/^(?:in|of)\s+/i, '')
+          .replace(/[,;(].*$/, '')
+          .trim();
       } else {
         cur.degree = degreeSeg;
       }
@@ -311,13 +383,34 @@ function parseEducation(lines: string[]): ResumeEducation[] {
   return entries.filter((e) => e.school || e.degree);
 }
 
+/** Splits a skills line on separators, keeping "AWS (Lambda, S3)" together. */
+function splitSkillLine(line: string): string[] {
+  const parts: string[] = [];
+  let buffer = '';
+  let depth = 0;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '(' || ch === '[') depth += 1;
+    else if (ch === ')' || ch === ']') depth = Math.max(0, depth - 1);
+    const separator = /[,•|;·\t]/.test(ch) || (ch === ' ' && line[i + 1] === ' ');
+    if (depth === 0 && separator) {
+      parts.push(buffer);
+      buffer = '';
+    } else {
+      buffer += ch;
+    }
+  }
+  parts.push(buffer);
+  return parts;
+}
+
 function parseSkills(lines: string[]): ResumeSkill[] {
   const seen = new Set<string>();
   const skills: ResumeSkill[] = [];
   for (const raw of lines) {
     // Drop "Languages:"-style category labels, keep what follows.
     const line = stripBullet(raw.trim()).replace(/^[A-Za-z /&()-]{2,30}:\s*/, '');
-    for (const part of line.split(/[,•|;·\t]+|\s{2,}/)) {
+    for (const part of splitSkillLine(line)) {
       const name = part.trim().replace(/[.]+$/, '');
       if (!name || name.length > 40 || /^\d+$/.test(name)) continue;
       const key = name.toLowerCase();
@@ -341,7 +434,9 @@ function parseProjects(lines: string[]): ResumeProject[] {
   for (const raw of lines) {
     const line = raw.trim();
     if (!line) continue;
-    if (cur && (isBullet(line) || line.length > 80)) {
+    const prose =
+      /^[\p{Ll}]/u.test(line) || /[.!?]$/.test(line) || line.split(/\s+/).length > 8;
+    if (cur && (isBullet(line) || line.length > 80 || prose)) {
       curDescription.push(stripBullet(line));
       continue;
     }
@@ -371,7 +466,7 @@ export function parseResumeText(text: string): { resume: Resume; warnings: strin
   const resume: Resume = JSON.parse(JSON.stringify(DEFAULT_RESUME));
   const warnings: string[] = [];
   const lines = text.replace(/\r\n?/g, '\n').split('\n');
-  const { preamble, bodies, found } = splitSections(lines);
+  const { preamble, bodies, found, skipped } = splitSections(lines);
 
   parseContact(preamble, resume);
   if (!resume.fullName && !resume.email) {
@@ -405,6 +500,11 @@ export function parseResumeText(text: string): { resume: Resume; warnings: strin
     for (const key of ['experience', 'education', 'skills'] as const) {
       if (!bodies[key]) warnings.push(`No ${key} section was detected.`);
     }
+  }
+  if (skipped.length > 0) {
+    warnings.push(
+      `Skipped sections the importer does not model: ${[...new Set(skipped)].join(', ')}. Add anything you need from them by hand.`
+    );
   }
 
   return { resume, warnings };

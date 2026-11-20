@@ -1,12 +1,15 @@
-import { KeyboardEvent, useEffect, useMemo, useState } from 'react';
+import { KeyboardEvent, ReactNode, useEffect, useMemo, useState } from 'react';
 import {
   DEFAULT_RESUME,
+  RESUME_SECTION_LABELS,
   Resume,
   ResumeBullet,
   ResumeEducation,
   ResumeExperience,
   ResumeProject,
+  ResumeSectionKey,
 } from '../../shared/types';
+import { ResumeVersions } from '../components/ResumeVersions';
 import { TagInput } from '../components/TagInput';
 
 export function ResumePage() {
@@ -20,6 +23,7 @@ export function ResumePage() {
     lines: string[];
   } | null>(null);
   const [view, setView] = useState<'edit' | 'preview'>('edit');
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
 
   useEffect(() => {
     window.careerkit.getResume().then((r) => {
@@ -37,8 +41,16 @@ export function ResumePage() {
   const save = async () => {
     await window.careerkit.saveResume(resume);
     setSavedJson(JSON.stringify(resume));
+    setConfirmingDiscard(false);
     setSavedFlash(true);
     setTimeout(() => setSavedFlash(false), 2000);
+  };
+
+  /** Throws away every unsaved edit, restoring the last saved resume. */
+  const discard = () => {
+    setResume(JSON.parse(savedJson));
+    setImportNotice(null);
+    setConfirmingDiscard(false);
   };
 
   const importFromFile = async () => {
@@ -59,10 +71,12 @@ export function ResumePage() {
       });
       setView('edit');
     } catch (error) {
-      setImportNotice({
-        tone: 'danger',
-        lines: [error instanceof Error ? error.message : 'Import failed.'],
-      });
+      // Electron prefixes errors thrown in the main process with the IPC channel.
+      const message = (error instanceof Error ? error.message : 'Import failed.').replace(
+        /^Error invoking remote method '[^']+': (?:Error: )?/,
+        ''
+      );
+      setImportNotice({ tone: 'danger', lines: [message] });
     } finally {
       setImporting(false);
     }
@@ -125,12 +139,33 @@ export function ResumePage() {
             <span className={dirty ? 'ck-unsaved-hint' : 'ck-saved-hint'}>
               {dirty ? '● Unsaved changes' : savedFlash ? '✓ Saved' : 'All changes saved'}
             </span>
+            {dirty &&
+              (confirmingDiscard ? (
+                <>
+                  <button className="button is-danger" onClick={discard}>
+                    Discard all
+                  </button>
+                  <button className="button" onClick={() => setConfirmingDiscard(false)}>
+                    Keep
+                  </button>
+                </>
+              ) : (
+                <button
+                  className="button is-danger is-outlined"
+                  title="Throw away all unsaved changes and go back to the last saved resume"
+                  onClick={() => setConfirmingDiscard(true)}
+                >
+                  Discard
+                </button>
+              ))}
             <button className="button is-primary ck-save-button" onClick={save} disabled={!dirty}>
               Save
             </button>
           </div>
         </div>
       </div>
+
+      <ResumeVersions />
 
       {importNotice && (
         <div className={`notification is-light is-${importNotice.tone} py-3`}>
@@ -207,6 +242,50 @@ function mergeImportedResume(current: Resume, imported: Resume): { merged: Resum
   return { merged, added };
 }
 
+/** Swaps items at `index` and `index + delta`; returns the same array when out of range. */
+function moveItem<T>(items: T[], index: number, delta: number): T[] {
+  const target = index + delta;
+  if (target < 0 || target >= items.length) return items;
+  const next = [...items];
+  [next[index], next[target]] = [next[target], next[index]];
+  return next;
+}
+
+function MoveButtons({
+  index,
+  count,
+  onMove,
+  size = 'is-small',
+}: {
+  index: number;
+  count: number;
+  onMove(delta: number): void;
+  size?: string;
+}) {
+  return (
+    <div className="ck-move-buttons">
+      <button
+        type="button"
+        className={`button ${size} is-white`}
+        title="Move up"
+        disabled={index === 0}
+        onClick={() => onMove(-1)}
+      >
+        ↑
+      </button>
+      <button
+        type="button"
+        className={`button ${size} is-white`}
+        title="Move down"
+        disabled={index === count - 1}
+        onClick={() => onMove(1)}
+      >
+        ↓
+      </button>
+    </div>
+  );
+}
+
 function ResumeEditor({
   resume,
   set,
@@ -214,6 +293,140 @@ function ResumeEditor({
   resume: Resume;
   set<K extends keyof Resume>(key: K, value: Resume[K]): void;
 }) {
+  const order = resume.sectionOrder;
+  const moveSection = (index: number, delta: number) =>
+    set('sectionOrder', moveItem(order, index, delta));
+
+  const sections: Record<ResumeSectionKey, { actions?: ReactNode; hint?: string; body: ReactNode }> = {
+    summary: {
+      actions: (
+        <IncludeToggle included={resume.includeSummary} onChange={(v) => set('includeSummary', v)} />
+      ),
+      body: (
+        <textarea
+          className="textarea"
+          rows={3}
+          value={resume.summary}
+          placeholder="A short professional summary…"
+          onChange={(e) => set('summary', e.target.value)}
+        />
+      ),
+    },
+    skills: {
+      hint: 'Click a skill to toggle whether it appears on the resume. Every skill in the bank still powers job-fit ranking.',
+      body: <SkillBank resume={resume} set={set} />,
+    },
+    experience: {
+      hint: 'Each entry has an On Resume toggle.',
+      actions: (
+        <AddButton
+          onClick={() =>
+            set('experience', [
+              ...resume.experience,
+              {
+                id: crypto.randomUUID(),
+                company: '',
+                title: '',
+                location: '',
+                start: '',
+                end: '',
+                current: false,
+                bullets: [],
+                included: true,
+              },
+            ])
+          }
+        />
+      ),
+      body: (
+        <>
+          {resume.experience.map((exp, i) => (
+            <ExperienceEditor
+              key={exp.id}
+              exp={exp}
+              index={i}
+              count={resume.experience.length}
+              onMove={(delta) => set('experience', moveItem(resume.experience, i, delta))}
+              onChange={(updated) =>
+                set('experience', resume.experience.map((e, j) => (i === j ? updated : e)))
+              }
+              onRemove={() => set('experience', resume.experience.filter((_, j) => i !== j))}
+            />
+          ))}
+          {resume.experience.length === 0 && <EmptyHint text="No experience entries yet." />}
+        </>
+      ),
+    },
+    education: {
+      actions: (
+        <AddButton
+          onClick={() =>
+            set('education', [
+              ...resume.education,
+              {
+                id: crypto.randomUUID(),
+                school: '',
+                degree: '',
+                field: '',
+                start: '',
+                end: '',
+                included: true,
+              },
+            ])
+          }
+        />
+      ),
+      body: (
+        <>
+          {resume.education.map((edu, i) => (
+            <EducationEditor
+              key={edu.id}
+              edu={edu}
+              index={i}
+              count={resume.education.length}
+              onMove={(delta) => set('education', moveItem(resume.education, i, delta))}
+              onChange={(updated) =>
+                set('education', resume.education.map((e, j) => (i === j ? updated : e)))
+              }
+              onRemove={() => set('education', resume.education.filter((_, j) => i !== j))}
+            />
+          ))}
+          {resume.education.length === 0 && <EmptyHint text="No education entries yet." />}
+        </>
+      ),
+    },
+    projects: {
+      actions: (
+        <AddButton
+          onClick={() =>
+            set('projects', [
+              ...resume.projects,
+              { id: crypto.randomUUID(), name: '', url: '', description: '', included: true },
+            ])
+          }
+        />
+      ),
+      body: (
+        <>
+          {resume.projects.map((project, i) => (
+            <ProjectEditor
+              key={project.id}
+              project={project}
+              index={i}
+              count={resume.projects.length}
+              onMove={(delta) => set('projects', moveItem(resume.projects, i, delta))}
+              onChange={(updated) =>
+                set('projects', resume.projects.map((p, j) => (i === j ? updated : p)))
+              }
+              onRemove={() => set('projects', resume.projects.filter((_, j) => i !== j))}
+            />
+          ))}
+          {resume.projects.length === 0 && <EmptyHint text="No projects yet." />}
+        </>
+      ),
+    },
+  };
+
   return (
     <>
       <div className="box">
@@ -242,119 +455,22 @@ function ResumeEditor({
         />
       </div>
 
-      <div className="box">
-        <div className="is-flex is-justify-content-space-between is-align-items-center mb-3">
-          <h2 className="title is-5 mb-0">Summary</h2>
-          <IncludeToggle
-            included={resume.includeSummary}
-            onChange={(v) => set('includeSummary', v)}
-          />
-        </div>
-        <textarea
-          className="textarea"
-          rows={3}
-          value={resume.summary}
-          placeholder="A short professional summary…"
-          onChange={(e) => set('summary', e.target.value)}
-        />
-      </div>
-
-      <div className="box">
-        <h2 className="title is-5 mb-1">Skills</h2>
-        <p className="is-size-7 has-text-grey mb-3">
-          Click a skill to toggle whether it appears on the resume. Every skill in the bank still
-          powers job-fit ranking.
-        </p>
-        <SkillBank resume={resume} set={set} />
-      </div>
-
-      <div className="box">
-        <SectionHeader
-          title="Experience"
-          hint="Each entry has an On Resume toggle."
-          onAdd={() =>
-            set('experience', [
-              ...resume.experience,
-              {
-                id: crypto.randomUUID(),
-                company: '',
-                title: '',
-                location: '',
-                start: '',
-                end: '',
-                current: false,
-                bullets: [],
-                included: true,
-              },
-            ])
-          }
-        />
-        {resume.experience.map((exp, i) => (
-          <ExperienceEditor
-            key={exp.id}
-            exp={exp}
-            onChange={(updated) =>
-              set('experience', resume.experience.map((e, j) => (i === j ? updated : e)))
-            }
-            onRemove={() => set('experience', resume.experience.filter((_, j) => i !== j))}
-          />
-        ))}
-        {resume.experience.length === 0 && <EmptyHint text="No experience entries yet." />}
-      </div>
-
-      <div className="box">
-        <SectionHeader
-          title="Education"
-          onAdd={() =>
-            set('education', [
-              ...resume.education,
-              {
-                id: crypto.randomUUID(),
-                school: '',
-                degree: '',
-                field: '',
-                start: '',
-                end: '',
-                included: true,
-              },
-            ])
-          }
-        />
-        {resume.education.map((edu, i) => (
-          <EducationEditor
-            key={edu.id}
-            edu={edu}
-            onChange={(updated) =>
-              set('education', resume.education.map((e, j) => (i === j ? updated : e)))
-            }
-            onRemove={() => set('education', resume.education.filter((_, j) => i !== j))}
-          />
-        ))}
-        {resume.education.length === 0 && <EmptyHint text="No education entries yet." />}
-      </div>
-
-      <div className="box">
-        <SectionHeader
-          title="Projects"
-          onAdd={() =>
-            set('projects', [
-              ...resume.projects,
-              { id: crypto.randomUUID(), name: '', url: '', description: '', included: true },
-            ])
-          }
-        />
-        {resume.projects.map((project, i) => (
-          <ProjectEditor
-            key={project.id}
-            project={project}
-            onChange={(updated) =>
-              set('projects', resume.projects.map((p, j) => (i === j ? updated : p)))
-            }
-            onRemove={() => set('projects', resume.projects.filter((_, j) => i !== j))}
-          />
-        ))}
-        {resume.projects.length === 0 && <EmptyHint text="No projects yet." />}
-      </div>
+      {order.map((key, index) => {
+        const section = sections[key];
+        return (
+          <div className="box" key={key}>
+            <SectionHeader
+              title={RESUME_SECTION_LABELS[key]}
+              hint={section.hint}
+              move={
+                <MoveButtons index={index} count={order.length} onMove={(d) => moveSection(index, d)} />
+              }
+              actions={section.actions}
+            />
+            {section.body}
+          </div>
+        );
+      })}
     </>
   );
 }
@@ -366,26 +482,24 @@ function ResumePreview({ resume }: { resume: Resume }) {
   const projects = resume.projects.filter((p) => p.included);
   const contact = [resume.location, resume.email, resume.phone, ...resume.links].filter(Boolean);
 
-  return (
-    <div className="ck-resume-preview">
-      <header className="ck-rp-header">
-        <h1>{resume.fullName || 'Your Name'}</h1>
-        {contact.length > 0 && <p className="ck-rp-contact">{contact.join('  ·  ')}</p>}
-      </header>
-      {resume.includeSummary && resume.summary.trim() && (
-        <section>
+  const sections: Record<ResumeSectionKey, ReactNode | null> = {
+    summary:
+      resume.includeSummary && resume.summary.trim() ? (
+        <section key="summary">
           <h2>Summary</h2>
           <p>{resume.summary}</p>
         </section>
-      )}
-      {skills.length > 0 && (
-        <section>
+      ) : null,
+    skills:
+      skills.length > 0 ? (
+        <section key="skills">
           <h2>Skills</h2>
           <p>{skills.map((s) => s.name).join('  ·  ')}</p>
         </section>
-      )}
-      {experience.length > 0 && (
-        <section>
+      ) : null,
+    experience:
+      experience.length > 0 ? (
+        <section key="experience">
           <h2>Experience</h2>
           {experience.map((exp) => (
             <div key={exp.id} className="ck-rp-entry">
@@ -412,9 +526,10 @@ function ResumePreview({ resume }: { resume: Resume }) {
             </div>
           ))}
         </section>
-      )}
-      {education.length > 0 && (
-        <section>
+      ) : null,
+    education:
+      education.length > 0 ? (
+        <section key="education">
           <h2>Education</h2>
           {education.map((edu) => (
             <div key={edu.id} className="ck-rp-entry">
@@ -428,9 +543,10 @@ function ResumePreview({ resume }: { resume: Resume }) {
             </div>
           ))}
         </section>
-      )}
-      {projects.length > 0 && (
-        <section>
+      ) : null,
+    projects:
+      projects.length > 0 ? (
+        <section key="projects">
           <h2>Projects</h2>
           {projects.map((project) => (
             <div key={project.id} className="ck-rp-entry">
@@ -442,7 +558,16 @@ function ResumePreview({ resume }: { resume: Resume }) {
             </div>
           ))}
         </section>
-      )}
+      ) : null,
+  };
+
+  return (
+    <div className="ck-resume-preview">
+      <header className="ck-rp-header">
+        <h1>{resume.fullName || 'Your Name'}</h1>
+        {contact.length > 0 && <p className="ck-rp-contact">{contact.join('  ·  ')}</p>}
+      </header>
+      {resume.sectionOrder.map((key) => sections[key])}
       {experience.length === 0 && education.length === 0 && projects.length === 0 && skills.length === 0 && (
         <p className="has-text-grey">
           Nothing selected yet — switch to Edit and toggle entries onto the resume.
@@ -566,21 +691,38 @@ function Field({
   );
 }
 
-function SectionHeader({ title, hint, onAdd }: { title: string; hint?: string; onAdd(): void }) {
+function SectionHeader({
+  title,
+  hint,
+  move,
+  actions,
+}: {
+  title: string;
+  hint?: string;
+  move?: ReactNode;
+  actions?: ReactNode;
+}) {
   return (
-    <div className="level mb-3">
+    <div className="level mb-3 ck-section-header">
       <div className="level-left">
-        <div>
-          <h2 className="title is-5 mb-0">{title}</h2>
-          {hint && <p className="is-size-7 has-text-grey mb-0">{hint}</p>}
+        <div className="is-flex is-align-items-center">
+          {move}
+          <div>
+            <h2 className="title is-5 mb-0">{title}</h2>
+            {hint && <p className="is-size-7 has-text-grey mb-0">{hint}</p>}
+          </div>
         </div>
       </div>
-      <div className="level-right">
-        <button className="button is-small is-primary is-light" onClick={onAdd}>
-          + Add
-        </button>
-      </div>
+      {actions && <div className="level-right">{actions}</div>}
     </div>
+  );
+}
+
+function AddButton({ onClick }: { onClick(): void }) {
+  return (
+    <button className="button is-small is-primary is-light" onClick={onClick}>
+      + Add
+    </button>
   );
 }
 
@@ -592,14 +734,21 @@ function ExperienceEditor({
   exp,
   onChange,
   onRemove,
+  index,
+  count,
+  onMove,
 }: {
   exp: ResumeExperience;
   onChange(e: ResumeExperience): void;
   onRemove(): void;
+  index: number;
+  count: number;
+  onMove(delta: number): void;
 }) {
   return (
     <div className={`ck-subcard p-4 mb-4 ${exp.included ? '' : 'ck-excluded'}`}>
-      <div className="is-flex is-justify-content-flex-end mb-2">
+      <div className="is-flex is-justify-content-space-between is-align-items-center mb-2">
+        <MoveButtons index={index} count={count} onMove={onMove} />
         <IncludeToggle included={exp.included} onChange={(v) => onChange({ ...exp, included: v })} />
       </div>
       <div className="columns">
@@ -739,14 +888,21 @@ function EducationEditor({
   edu,
   onChange,
   onRemove,
+  index,
+  count,
+  onMove,
 }: {
   edu: ResumeEducation;
   onChange(e: ResumeEducation): void;
   onRemove(): void;
+  index: number;
+  count: number;
+  onMove(delta: number): void;
 }) {
   return (
     <div className={`ck-subcard p-4 mb-4 ${edu.included ? '' : 'ck-excluded'}`}>
-      <div className="is-flex is-justify-content-flex-end mb-2">
+      <div className="is-flex is-justify-content-space-between is-align-items-center mb-2">
+        <MoveButtons index={index} count={count} onMove={onMove} />
         <IncludeToggle included={edu.included} onChange={(v) => onChange({ ...edu, included: v })} />
       </div>
       <div className="columns">
@@ -800,14 +956,21 @@ function ProjectEditor({
   project,
   onChange,
   onRemove,
+  index,
+  count,
+  onMove,
 }: {
   project: ResumeProject;
   onChange(p: ResumeProject): void;
   onRemove(): void;
+  index: number;
+  count: number;
+  onMove(delta: number): void;
 }) {
   return (
     <div className={`ck-subcard p-4 mb-4 ${project.included ? '' : 'ck-excluded'}`}>
-      <div className="is-flex is-justify-content-flex-end mb-2">
+      <div className="is-flex is-justify-content-space-between is-align-items-center mb-2">
+        <MoveButtons index={index} count={count} onMove={onMove} />
         <IncludeToggle
           included={project.included}
           onChange={(v) => onChange({ ...project, included: v })}

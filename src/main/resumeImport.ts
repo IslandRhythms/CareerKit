@@ -8,7 +8,9 @@ import { parseResumeText } from './parseResumeText';
 interface PdfTextItem {
   str: string;
   hasEOL: boolean;
+  /** [scaleX, skewX, skewY, scaleY, x, y] in PDF points. */
   transform: number[];
+  width: number;
 }
 interface PdfPage {
   getTextContent(): Promise<{ items: Array<PdfTextItem | { type: string }> }>;
@@ -32,7 +34,12 @@ const pdfjs = require('pdfjs-dist/legacy/build/pdf.mjs') as {
   }): { promise: Promise<PdfDocument>; destroy(): Promise<void> };
 };
 
-/** Reassembles pdf.js text items into lines using their y positions. */
+/**
+ * Reassembles pdf.js text items into lines. Items on the same baseline are
+ * separate runs with no whitespace between them, so the horizontal gap decides
+ * the separator: a small gap is a word space, a wide one (table cell, right-
+ * aligned date) becomes a double space the parser treats as a column break.
+ */
 async function extractPdfText(buffer: Buffer): Promise<string> {
   const task = pdfjs.getDocument({ data: new Uint8Array(buffer), verbosity: 0 });
   const doc = await task.promise;
@@ -42,14 +49,29 @@ async function extractPdfText(buffer: Buffer): Promise<string> {
       const { items } = await (await doc.getPage(i)).getTextContent();
       let text = '';
       let lastY: number | null = null;
+      let lastRight: number | null = null;
       for (const item of items) {
         if (!('str' in item)) continue;
+        const x = item.transform[4];
         const y = item.transform[5];
-        if (lastY !== null && Math.abs(y - lastY) > 1) text += '\n';
-        text += item.str;
+        const fontSize = Math.abs(item.transform[0]) || Math.abs(item.transform[3]) || 10;
+        if (lastY !== null && Math.abs(y - lastY) > 1) {
+          text += '\n';
+          lastRight = null;
+        }
+        if (item.str) {
+          if (lastRight !== null && !/\s$/.test(text) && !/^\s/.test(item.str)) {
+            const gap = x - lastRight;
+            if (gap > fontSize * 1.5) text += '  ';
+            else if (gap > fontSize * 0.12) text += ' ';
+          }
+          text += item.str;
+          lastRight = x + (item.width ?? 0);
+        }
         if (item.hasEOL) {
           text += '\n';
           lastY = null;
+          lastRight = null;
         } else {
           lastY = y;
         }
@@ -73,15 +95,28 @@ async function extractText(filePath: string): Promise<string> {
   return readFile(filePath, 'utf8');
 }
 
+const RESUME_FILE_FILTERS = [
+  { name: 'Resumes (PDF, Word, text)', extensions: ['pdf', 'docx', 'txt', 'md'] },
+  { name: 'All Files', extensions: ['*'] },
+];
+
+/** Prompts for a resume file and returns its name; null when the user cancels. */
+export async function pickResumeFile(): Promise<string | null> {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    title: 'Upload Resume',
+    properties: ['openFile'],
+    filters: RESUME_FILE_FILTERS,
+  });
+  if (canceled || filePaths.length === 0) return null;
+  return path.basename(filePaths[0]);
+}
+
 /** Prompts for a resume file and parses it; null when the user cancels. */
 export async function importResumeFromFile(): Promise<ResumeImportResult | null> {
   const { canceled, filePaths } = await dialog.showOpenDialog({
     title: 'Import Resume',
     properties: ['openFile'],
-    filters: [
-      { name: 'Resumes (PDF, Word, text)', extensions: ['pdf', 'docx', 'txt', 'md'] },
-      { name: 'All Files', extensions: ['*'] },
-    ],
+    filters: RESUME_FILE_FILTERS,
   });
   if (canceled || filePaths.length === 0) return null;
 

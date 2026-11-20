@@ -6,9 +6,9 @@ Built with Electron Forge, React, TypeScript, better-sqlite3, and Bulma.
 
 ## Features
 
-- **Job Tracker** — kanban pipeline (Saved → Applied → Interview → Offer → Rejected) with drag-and-drop, notes, salary, and applied dates.
+- **Job Tracker** — kanban pipeline (Saved → Applied → Interview → Offer → Rejected) with drag-and-drop, notes, salary, and applied dates. Each job can carry an ordered list of interview stages (recruiter screen, technical, onsite, …) with a date, status, and notes per round; cards show a "Stage 2 of 4" progress strip and the next scheduled round.
 - **Job Preferences** — desired titles, skills, city/state locations (with a built-in US states list), remote preference, minimum salary, avoid-keywords, a company blacklist, and job-board sources.
-- **Master Resume** — a content bank for everything you've done (summary, skills, experience, education, projects); toggle each entry on or off the generated resume, preview the formatted document live, and print/export to PDF. All banked skills feed the job-fit ranking.
+- **Master Resume** — a content bank for everything you've done (summary, skills, experience, education, projects); toggle each entry on or off the generated resume, reorder sections and entries, import an existing PDF/Word/text resume, preview the formatted document live, and print/export to PDF. All banked skills feed the job-fit ranking.
 - **Discover** — queries the Remotive and Jobicy remote-jobs APIs plus any Greenhouse boards and Lever companies you follow, scores each posting 0–100 against your preferences and resume (skills, title, location/remote, salary, recency, avoid-keywords), and shows results best-fit first in a dense card grid with a detail view. Blacklisted companies are flagged rather than hidden. One click saves a posting into the tracker.
 - **Themes** — light/dark/system mode plus custom accent colors (presets or any color), applied live across the whole UI.
 

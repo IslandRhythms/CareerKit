@@ -5,11 +5,16 @@ import { app } from 'electron';
 import {
   DEFAULT_PREFERENCES,
   DEFAULT_RESUME,
+  InterviewStage,
   Job,
   NewJob,
   Preferences,
   Resume,
   ResumeBullet,
+  ResumeVersion,
+  WorkArrangement,
+  isWorkArrangement,
+  normalizeSectionOrder,
 } from '../shared/types';
 
 let db: Database.Database;
@@ -43,7 +48,42 @@ export function initDb(): void {
       data TEXT NOT NULL,
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS resumes (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
+  migrate();
+}
+
+/** Adds columns introduced after the initial schema to databases created before them. */
+function migrate(): void {
+  const columns = (db.prepare('PRAGMA table_info(jobs)').all() as Array<{ name: string }>).map(
+    (c) => c.name
+  );
+  if (!columns.includes('interview_stages')) {
+    db.exec(`ALTER TABLE jobs ADD COLUMN interview_stages TEXT NOT NULL DEFAULT '[]'`);
+  }
+  if (!columns.includes('resume_id')) {
+    db.exec(`ALTER TABLE jobs ADD COLUMN resume_id TEXT`);
+  }
+  if (!columns.includes('work_arrangement')) {
+    db.exec(`ALTER TABLE jobs ADD COLUMN work_arrangement TEXT`);
+  }
+  // The off-tracker application log was removed; drop it from databases that created it.
+  db.exec(`DROP TABLE IF EXISTS outside_applications`);
+}
+
+function parseStages(raw: string | null): InterviewStage[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 interface JobRow {
@@ -60,6 +100,9 @@ interface JobRow {
   description: string | null;
   notes: string | null;
   applied_at: string | null;
+  interview_stages: string | null;
+  resume_id: string | null;
+  work_arrangement: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -79,9 +122,17 @@ function rowToJob(row: JobRow): Job {
     description: row.description,
     notes: row.notes,
     appliedAt: row.applied_at,
+    interviewStages: parseStages(row.interview_stages),
+    resumeId: row.resume_id,
+    workArrangement: parseWorkArrangement(row.work_arrangement),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+function parseWorkArrangement(raw: string | null): WorkArrangement | null {
+  if (raw && isWorkArrangement(raw)) return raw;
+  return null;
 }
 
 export function listJobs(): Job[] {
@@ -98,8 +149,8 @@ export function getJob(id: number): Job {
 export function createJob(job: NewJob): Job {
   const result = db
     .prepare(
-      `INSERT INTO jobs (title, company, url, location, salary_min, salary_max, status, source, external_id, description, notes, applied_at)
-       VALUES (@title, @company, @url, @location, @salaryMin, @salaryMax, @status, @source, @externalId, @description, @notes, @appliedAt)`
+      `INSERT INTO jobs (title, company, url, location, salary_min, salary_max, status, source, external_id, description, notes, applied_at, interview_stages, resume_id, work_arrangement)
+       VALUES (@title, @company, @url, @location, @salaryMin, @salaryMax, @status, @source, @externalId, @description, @notes, @appliedAt, @interviewStages, @resumeId, @workArrangement)`
     )
     .run({
       title: job.title,
@@ -114,6 +165,9 @@ export function createJob(job: NewJob): Job {
       description: job.description,
       notes: job.notes,
       appliedAt: job.appliedAt,
+      interviewStages: JSON.stringify(job.interviewStages ?? []),
+      resumeId: job.resumeId ?? null,
+      workArrangement: job.workArrangement ?? null,
     });
   return getJob(Number(result.lastInsertRowid));
 }
@@ -131,7 +185,13 @@ const JOB_COLUMNS: Record<string, string> = {
   description: 'description',
   notes: 'notes',
   appliedAt: 'applied_at',
+  interviewStages: 'interview_stages',
+  resumeId: 'resume_id',
+  workArrangement: 'work_arrangement',
 };
+
+/** Columns stored as JSON text; values are serialized before binding. */
+const JSON_COLUMNS = new Set<keyof NewJob>(['interviewStages']);
 
 export function updateJob(id: number, changes: Partial<NewJob>): Job {
   const sets: string[] = [];
@@ -139,7 +199,8 @@ export function updateJob(id: number, changes: Partial<NewJob>): Job {
   for (const [key, column] of Object.entries(JOB_COLUMNS)) {
     if (key in changes) {
       sets.push(`${column} = @${key}`);
-      params[key] = (changes as Record<string, unknown>)[key];
+      const value = (changes as Record<string, unknown>)[key];
+      params[key] = JSON_COLUMNS.has(key as keyof NewJob) ? JSON.stringify(value ?? []) : value;
     }
   }
   if (sets.length > 0) {
@@ -212,6 +273,7 @@ function normalizeResume(resume: Resume): Resume {
     })),
     education: withIncluded(resume.education),
     projects: withIncluded(resume.projects),
+    sectionOrder: normalizeSectionOrder(resume.sectionOrder),
   };
 }
 
@@ -221,4 +283,73 @@ export function getResume(): Resume {
 
 export function saveResume(resume: Resume): void {
   saveDocument('resume', resume);
+}
+
+interface ResumeVersionRow {
+  id: string;
+  name: string;
+  file_name: string;
+  created_at: string;
+}
+
+function rowToResumeVersion(row: ResumeVersionRow): ResumeVersion {
+  return {
+    id: row.id,
+    name: row.name,
+    fileName: row.file_name,
+    createdAt: row.created_at,
+  };
+}
+
+export function listResumeVersions(): ResumeVersion[] {
+  const rows = db
+    .prepare('SELECT id, name, file_name, created_at FROM resumes ORDER BY created_at DESC')
+    .all() as ResumeVersionRow[];
+  return rows.map(rowToResumeVersion);
+}
+
+function getResumeVersion(id: string): ResumeVersion {
+  const row = db
+    .prepare('SELECT id, name, file_name, created_at FROM resumes WHERE id = ?')
+    .get(id) as ResumeVersionRow | undefined;
+  if (!row) throw new Error('Resume not found.');
+  return rowToResumeVersion(row);
+}
+
+/** Display name from a file name, with a numeric suffix when that name is taken. */
+function uniqueResumeName(fileName: string): string {
+  const base = fileName.replace(/\.[^.]+$/, '').trim() || fileName;
+  const taken = new Set(
+    (db.prepare('SELECT name FROM resumes').all() as Array<{ name: string }>).map((row) => row.name)
+  );
+  if (!taken.has(base)) return base;
+  let suffix = 2;
+  while (taken.has(`${base} (${suffix})`)) suffix += 1;
+  return `${base} (${suffix})`;
+}
+
+export function createResumeVersion(fileName: string): ResumeVersion {
+  const id = randomUUID();
+  db.prepare('INSERT INTO resumes (id, name, file_name) VALUES (?, ?, ?)').run(
+    id,
+    uniqueResumeName(fileName),
+    fileName
+  );
+  return getResumeVersion(id);
+}
+
+export function renameResumeVersion(id: string, name: string): ResumeVersion {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('Resume name cannot be empty.');
+  const result = db.prepare('UPDATE resumes SET name = ? WHERE id = ?').run(trimmed, id);
+  if (result.changes === 0) throw new Error('Resume not found.');
+  return getResumeVersion(id);
+}
+
+export function deleteResumeVersion(id: string): void {
+  const remove = db.transaction(() => {
+    db.prepare('UPDATE jobs SET resume_id = NULL WHERE resume_id = ?').run(id);
+    db.prepare('DELETE FROM resumes WHERE id = ?').run(id);
+  });
+  remove();
 }

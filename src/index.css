@@ -569,6 +569,146 @@ body {
   padding: 0.55rem 0.7rem !important;
 }
 
+/* ---------- Resume section / entry reordering ---------- */
+
+.ck-move-buttons {
+  display: inline-flex;
+  flex-direction: column;
+  margin-right: 0.5rem;
+  flex-shrink: 0;
+}
+
+.ck-move-buttons .button {
+  height: 1.25rem;
+  padding: 0 0.35rem;
+  font-size: 0.7rem;
+  line-height: 1;
+  color: var(--bulma-text-weak, var(--bulma-text));
+}
+
+.ck-move-buttons .button:disabled {
+  opacity: 0.25;
+}
+
+.ck-section-header .level-left,
+.ck-section-header .level-right {
+  margin-bottom: 0;
+}
+
+/* ---------- Interview stages ---------- */
+
+.ck-stages {
+  margin-top: 0.45rem;
+  padding-top: 0.4rem;
+  border-top: 1px dashed var(--bulma-border);
+}
+
+.ck-stage-dots {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.ck-stage-dot {
+  flex: 1;
+  height: 4px;
+  max-width: 1.6rem;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--bulma-text) 18%, transparent);
+}
+
+.ck-stage-dot-scheduled {
+  background: var(--ck-c-interview);
+}
+
+.ck-stage-dot-completed {
+  background: color-mix(in srgb, var(--ck-c-interview) 60%, var(--ck-c-offer));
+}
+
+.ck-stage-dot-passed {
+  background: var(--ck-c-offer);
+}
+
+.ck-stage-dot-failed {
+  background: var(--ck-c-rejected);
+}
+
+.ck-stage-headline {
+  font-weight: 600;
+  color: color-mix(in srgb, var(--ck-c-interview) 70%, var(--bulma-text-strong));
+}
+
+.ck-stages-done .ck-stage-headline {
+  color: var(--ck-c-offer);
+}
+
+.ck-stages-failed .ck-stage-headline {
+  color: var(--ck-c-rejected);
+}
+
+.ck-stage-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.55rem 0.65rem;
+  margin-bottom: 0.5rem;
+  border-left: 3px solid color-mix(in srgb, var(--bulma-text) 18%, transparent);
+}
+
+.ck-stage-row-scheduled {
+  border-left-color: var(--ck-c-interview);
+}
+
+.ck-stage-row-completed {
+  border-left-color: color-mix(in srgb, var(--ck-c-interview) 60%, var(--ck-c-offer));
+}
+
+.ck-stage-row-passed {
+  border-left-color: var(--ck-c-offer);
+}
+
+.ck-stage-row-failed {
+  border-left-color: var(--ck-c-rejected);
+}
+
+.ck-stage-row-head,
+.ck-stage-row-body {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.ck-stage-row-body > .select,
+.ck-stage-row-body > .input {
+  flex: 1;
+}
+
+.ck-stage-row-body > .select > select {
+  width: 100%;
+}
+
+.ck-stage-index {
+  font-family: var(--ck-font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  width: 1.4rem;
+  flex-shrink: 0;
+  text-align: center;
+  color: var(--bulma-text-weak, var(--bulma-text));
+}
+
+.ck-stage-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.ck-stage-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex-shrink: 0;
+}
+
 /* ---------- Discover filter bar ---------- */
 
 .ck-filter-bar {
@@ -887,6 +1027,7 @@ body {
   }
   .ck-navbar,
   .ck-page-toolbar,
+  .ck-resume-versions,
   .ck-toast,
   button {
     display: none !important;

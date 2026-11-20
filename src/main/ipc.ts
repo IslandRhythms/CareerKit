@@ -2,7 +2,7 @@ import { ipcMain, shell } from 'electron';
 import { DiscoveredJob, NewJob, Preferences, Resume } from '../shared/types';
 import * as db from './db';
 import { discoverJobs } from './discover';
-import { importResumeFromFile } from './resumeImport';
+import { importResumeFromFile, pickResumeFile } from './resumeImport';
 
 export function registerIpcHandlers(): void {
   ipcMain.handle('jobs:list', () => db.listJobs());
@@ -18,6 +18,16 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('resume:get', () => db.getResume());
   ipcMain.handle('resume:save', (_event, resume: Resume) => db.saveResume(resume));
   ipcMain.handle('resume:import', () => importResumeFromFile());
+  ipcMain.handle('resumes:list', () => db.listResumeVersions());
+  ipcMain.handle('resumes:upload', async () => {
+    const fileName = await pickResumeFile();
+    if (!fileName) return null;
+    return db.createResumeVersion(fileName);
+  });
+  ipcMain.handle('resumes:rename', (_event, id: string, name: string) =>
+    db.renameResumeVersion(id, name)
+  );
+  ipcMain.handle('resumes:delete', (_event, id: string) => db.deleteResumeVersion(id));
 
   ipcMain.handle('discover:search', (_event, query: string) => discoverJobs(query));
   ipcMain.handle('discover:import', (_event, job: DiscoveredJob) =>
@@ -34,6 +44,9 @@ export function registerIpcHandlers(): void {
       description: job.description,
       notes: null,
       appliedAt: null,
+      interviewStages: [],
+      resumeId: null,
+      workArrangement: null,
     })
   );
 
